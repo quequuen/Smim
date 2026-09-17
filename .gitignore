@@ -1,0 +1,18 @@
+# secret
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# etc
+Icon

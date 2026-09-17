@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: smim
+
+  # 루트의 .env 를 docker compose 와 함께 읽는다 — 설정의 출처를 하나로 유지
+  # 서버 배포 시에는 실제 환경변수를 쓰므로 optional
+  config:
+    import: optional:file:../.env[.properties]
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/${POSTGRES_DB:smim}}
+    username: ${POSTGRES_USER:smim}
+    password: ${POSTGRES_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # 스키마는 Flyway가 만든다. JPA는 검증만
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+server:
+  port: ${PORT:8080}
+
+# ── 런타임 설정 기본값 ────────────────────────────────────────
+# GET /config 가 앱에 내려주는 값. 근거는 docs/location-policy.md
+# 반경은 확정값이 아니라 기본값이다 — 9주차 실험으로 결정한다.
+smim:
+  location:
+    radius-m: 300
+    keep-radius-m: 450        # radius × 1.5 · GPS 오차로 인한 깜빡임 방지
+    move-threshold-m: 45      # radius 의 1/6 ~ 1/8 · 화면 재조회 기준
+    heartbeat-sec: 45         # 서버 위치 등록 주기 · 화면 갱신과 무관
+  marker:
+    window-hour: 6            # 익명 표식 구간 경계 (D4)

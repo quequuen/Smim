@@ -1,0 +1,36 @@
+# ── Node ──────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── Expo ──────────────────────────────
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# ── Metro ─────────────────────────────
+.metro-health-check*
+
+# ── Android 빌드 산출물 ────────────────
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+*.apk
+*.aab
+
+# ── 서명 키 ───────────────────────────
+# 절대 커밋하지 말 것. 대신 반드시 별도 백업할 것.
+# 잃어버리면 앱을 영원히 업데이트할 수 없다.
+*.jks
+*.keystore
+keystore.properties
+
+# ── iOS (확장 단계) ────────────────────
+ios/Pods/
+ios/build/
+
+# ── Firebase (확장 단계 · FCM) ─────────
+google-services.json
+GoogleService-Info.plist

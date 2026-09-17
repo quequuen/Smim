@@ -1,0 +1,16 @@
+# ── Gradle ────────────────────────────
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ── 환경별 설정 (시크릿이 들어갈 수 있음) ──
+src/main/resources/application-local.yml
+src/main/resources/application-prod.yml
+
+# ── IntelliJ ──────────────────────────
+out/
+*.iws
+
+# ── 로그 ──────────────────────────────
+logs/
+*.log
