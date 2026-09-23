@@ -1,4 +1,4 @@
-# secret
+# ── 시크릿 ─────────────────────────────
 .env
 .env.*
 !.env.example
@@ -6,7 +6,7 @@
 *.key
 id_rsa*
 
-# OS/IDE
+# ── OS · IDE ──────────────────────────
 .DS_Store
 Thumbs.db
 .idea/
@@ -14,5 +14,5 @@ Thumbs.db
 *.iml
 *.swp
 
-# etc
+# macOS 폴더 아이콘 찌꺼기
 Icon

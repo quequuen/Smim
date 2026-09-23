@@ -30,6 +30,10 @@ services:
   # ── Redis ─────────────────────────────────────────────────────
   # 접속자 위치·세션 같은 "지금"의 상태만 담는다. 영속 데이터는 PostGIS에 있다.
   # 재시작 후 유령 세션이 복원되지 않도록 디스크 저장을 끈다.
+  #
+  # 기본 구현은 PostgreSQL(트랙 B)이므로 9주차 실험 전까지는 없어도 동작한다.
+  # 지금 띄우지 않으려면:  docker compose up -d postgres
+  # 자세한 내용은 docs/tracks.md
   redis:
     image: redis:7.4-alpine
     container_name: smim-redis

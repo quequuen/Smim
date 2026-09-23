@@ -108,7 +108,8 @@ cd server
 
 | 문서 | 내용 |
 |---|---|
-| [`docs/scope.md`](docs/scope.md) | MVP·확장 구분, 주차별 일정, 포기 순서 |
+| [`docs/tracks.md`](docs/tracks.md) | A(MVP) · B(위치 계층 선택) · +A(확장) 구분과 진행 순서 |
+| [`docs/scope.md`](docs/scope.md) | MVP·확장 상세, 주차별 일정, 포기 순서 |
 | [`docs/location-policy.md`](docs/location-policy.md) | 반경 정책, 위치 갱신 규칙, `/config` 스펙, 반경 실험 계획 |
 
 ## 설계 결정

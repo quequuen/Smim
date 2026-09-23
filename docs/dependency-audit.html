@@ -1,0 +1,698 @@
+<title>스밈 의존성 점검표</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --paper:      #F4F6F5;
+    --surface:    #FFFFFF;
+    --surface-2:  #EDF1EF;
+    --ink:        #101619;
+    --ink-2:      #2C3A3D;
+    --muted:      #5C6B6E;
+    --faint:      #8A9698;
+    --rule:       #D9E0DD;
+    --rule-soft:  #E6EBE9;
+    --accent:     #0B7F79;
+    --accent-ink: #075F5A;
+    --accent-wash:#DDEEEC;
+    --clay:       #A8492B;
+    --clay-wash:  #F6E4DD;
+    --gold:       #8A6A18;
+    --gold-wash:  #F3EBD5;
+
+    --sans: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --measure: 68ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0C1214; --surface: #141C1E; --surface-2: #1B2427;
+      --ink: #E7EDEB; --ink-2: #C3CFCC; --muted: #93A2A2; --faint: #6E7D7E;
+      --rule: #29383A; --rule-soft: #1E2A2C;
+      --accent: #52CFC4; --accent-ink: #7EE0D6; --accent-wash: #123330;
+      --clay: #E1875F; --clay-wash: #33201A;
+      --gold: #D6B14E; --gold-wash: #2E2716;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0C1214; --surface: #141C1E; --surface-2: #1B2427;
+    --ink: #E7EDEB; --ink-2: #C3CFCC; --muted: #93A2A2; --faint: #6E7D7E;
+    --rule: #29383A; --rule-soft: #1E2A2C;
+    --accent: #52CFC4; --accent-ink: #7EE0D6; --accent-wash: #123330;
+    --clay: #E1875F; --clay-wash: #33201A;
+    --gold: #D6B14E; --gold-wash: #2E2716;
+  }
+
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    font-weight: 350; font-size: 16px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: break-word;
+  }
+  .page { max-width: 1060px; margin: 0 auto; padding: 0 28px 110px; }
+  .col { max-width: var(--measure); }
+
+  header.top { padding: 72px 0 0; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 44px); font-weight: 600; letter-spacing: -0.025em;
+    line-height: 1.2; margin: 14px 0 0; text-wrap: balance;
+  }
+  .sub { color: var(--muted); font-size: 16.5px; margin: 14px 0 0; max-width: 56ch; }
+
+  /* ── Verdict tiles ── */
+  .verdict {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+    margin: 40px 0 0; border-radius: 3px; overflow: hidden;
+  }
+  .vt { background: var(--surface); padding: 20px 22px; }
+  .vt-n {
+    font-family: var(--mono); font-size: 34px; font-weight: 500; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .vt.ok   .vt-n { color: var(--accent); }
+  .vt.chk  .vt-n { color: var(--gold); }
+  .vt.act  .vt-n { color: var(--clay); }
+  .vt-l {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--faint); margin-top: 10px;
+  }
+  .vt-d { font-size: 13.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+
+  .headline {
+    margin: 34px 0 0; padding: 20px 22px; border-radius: 3px;
+    background: var(--accent-wash); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--rule));
+    font-size: 16.5px; color: var(--ink); line-height: 1.65;
+  }
+  .headline b { font-weight: 600; }
+
+  .sep {
+    display: flex; align-items: center; gap: 16px; margin: 72px 0 30px; color: var(--faint);
+  }
+  .sep::before, .sep::after { content: ""; height: 1px; background: var(--rule); flex: 1; }
+  .sep::before { max-width: 60px; }
+  .sep span {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.18em; text-transform: uppercase; white-space: nowrap;
+  }
+
+  h2 {
+    font-size: clamp(23px, 3vw, 30px); font-weight: 600; letter-spacing: -0.02em;
+    line-height: 1.3; margin: 0 0 14px; text-wrap: balance;
+  }
+  h3 { font-size: 18px; font-weight: 600; margin: 36px 0 10px; }
+  p { margin: 0 0 15px; }
+  strong { font-weight: 600; color: var(--ink); }
+  em { font-style: normal; color: var(--accent-ink); font-weight: 500; }
+  ul { margin: 0 0 15px; padding-left: 1.15em; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--faint); }
+  code {
+    font-family: var(--mono); font-size: 0.87em; background: var(--surface-2);
+    padding: 1px 5px; border-radius: 2px; color: var(--ink-2);
+  }
+
+  /* ── Status pill ── */
+  .st {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; padding: 3px 9px; border-radius: 2px;
+  }
+  .st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .st.ok  { background: var(--accent-wash); color: var(--accent-ink); }
+  .st.ok::before  { background: var(--accent); }
+  .st.chk { background: var(--gold-wash); color: var(--gold); }
+  .st.chk::before { background: var(--gold); }
+  .st.act { background: var(--clay-wash); color: var(--clay); }
+  .st.act::before { background: var(--clay); }
+
+  /* ── Tables ── */
+  .tw { overflow-x: auto; margin: 22px 0; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 640px; }
+  th {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+    text-align: left; padding: 0 14px 9px 0; border-bottom: 1px solid var(--rule);
+    white-space: nowrap; vertical-align: bottom;
+  }
+  td {
+    padding: 12px 14px 12px 0; border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top; color: var(--ink-2);
+  }
+  td:first-child, th:first-child { padding-left: 0; }
+  tr:last-child td { border-bottom: none; }
+  td.item { color: var(--ink); font-weight: 500; white-space: nowrap; }
+  td.cost { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.stc { width: 1%; }
+
+  /* ── Finding blocks ── */
+  .finds { margin: 26px 0; }
+  .find {
+    display: grid; grid-template-columns: 4px 1fr; gap: 20px;
+    padding: 22px 0; border-top: 1px solid var(--rule-soft);
+  }
+  .find:last-child { border-bottom: 1px solid var(--rule-soft); }
+  .bar { border-radius: 2px; min-height: 100%; }
+  .bar.act { background: var(--clay); }
+  .bar.chk { background: var(--gold); }
+  .bar.ok  { background: var(--accent); }
+  .find-hd {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .find-hd h3 { margin: 0; font-size: 17.5px; }
+  .find p { margin: 0 0 10px; font-size: 15px; color: var(--muted); }
+  .find p:last-child { margin-bottom: 0; }
+  .find .why {
+    font-size: 14.5px; color: var(--ink-2);
+    border-left: 2px solid var(--rule); padding-left: 13px; margin: 0 0 10px;
+  }
+  .find .do {
+    font-size: 14.5px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 3px; padding: 12px 15px; margin: 0;
+  }
+  .find .do::before {
+    content: "조치"; display: block; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.13em; color: var(--faint); text-transform: uppercase; margin-bottom: 5px;
+  }
+
+  /* ── Timeline bars ── */
+  .lead-times { margin: 24px 0; display: flex; flex-direction: column; gap: 14px; }
+  .lt { display: grid; grid-template-columns: 180px 1fr 92px; gap: 16px; align-items: center; font-size: 14.5px; }
+  .lt-name { color: var(--ink); font-weight: 500; }
+  .lt-track { height: 9px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+  .lt-fill { height: 100%; border-radius: 5px; }
+  .lt-val {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  @media (max-width: 620px) {
+    .lt { grid-template-columns: 1fr 74px; }
+    .lt-track { grid-column: 1 / -1; order: 3; }
+  }
+
+  /* ── Checklist ── */
+  .check { margin: 24px 0; display: flex; flex-direction: column; gap: 0; }
+  .ck {
+    display: grid; grid-template-columns: 26px 1fr; gap: 14px; align-items: start;
+    padding: 15px 0; border-top: 1px solid var(--rule-soft);
+  }
+  .ck:last-child { border-bottom: 1px solid var(--rule-soft); }
+  .ck-box {
+    width: 17px; height: 17px; border: 1.5px solid var(--rule);
+    border-radius: 3px; margin-top: 4px; background: var(--surface);
+  }
+  .ck b { display: block; font-weight: 600; font-size: 15.5px; margin-bottom: 3px; color: var(--ink); }
+  .ck p { margin: 0; font-size: 14.5px; color: var(--muted); }
+
+  .total {
+    margin: 26px 0; border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--surface); overflow: hidden; max-width: 460px;
+  }
+  .total-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 12px 18px; border-bottom: 1px solid var(--rule-soft); font-size: 14.5px;
+  }
+  .total-row:last-child {
+    border-bottom: none; background: var(--accent-wash);
+    font-weight: 600; font-size: 16px; color: var(--ink);
+  }
+  .total-row span:last-child {
+    font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2);
+  }
+  .total-row:last-child span:last-child { color: var(--accent-ink); }
+
+  footer {
+    margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--rule);
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.06em; color: var(--faint);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  a { color: var(--accent-ink); text-underline-offset: 2px; }
+  @media (max-width: 720px) { .page { padding: 0 20px 80px; } header.top { padding-top: 48px; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="page">
+
+  <header class="top">
+    <div class="eyebrow">의존성 및 리스크 점검 · 2026.09.15</div>
+    <h1>돈, 승인, 데이터 — 무엇이 막힐 수 있나</h1>
+    <p class="sub">
+      스밈 프로젝트가 의존하는 모든 외부 요소를 라이선스·비용·승인 대기·기술 함정으로 나누어 점검하고,
+      각각에 대해 차질 발생 가능 여부를 판정한다.
+    </p>
+
+    <div class="verdict">
+      <div class="vt ok">
+        <div class="vt-n">14</div>
+        <div class="vt-l">차질 없음</div>
+        <div class="vt-d">라이선스·비용 문제 전무</div>
+      </div>
+      <div class="vt chk">
+        <div class="vt-n">5</div>
+        <div class="vt-l">확인 필요</div>
+        <div class="vt-d">1주차에 직접 확인해야 함</div>
+      </div>
+      <div class="vt act">
+        <div class="vt-n">3</div>
+        <div class="vt-l">조치 필요</div>
+        <div class="vt-d">방치하면 일정이 밀림</div>
+      </div>
+    </div>
+
+    <div class="headline">
+      <b>결론 — 비용 때문에 막히는 부분은 없다.</b> 유료 전환을 강요당하는 구성요소가 하나도 없고,
+      총 예산은 <b>5만원 미만</b>이다. 실제 위험은 전부 <b>달력 시간과 외부 승인</b>에 있으며,
+      그중 둘은 <b>1주차에 손을 대지 않으면 11주 일정이 깨진다.</b>
+    </div>
+  </header>
+
+  <!-- ══ 01 ══ -->
+  <div class="sep"><span>01 — 라이선스와 비용</span></div>
+  <section>
+    <div class="col">
+      <p>
+        "Redis는 상업적으로 못 쓴다"는 이야기가 돌지만 사실이 아니다. 라이선스가 금지하는 것은
+        <em>상업적 사용</em>이 아니라 <em>Redis 자체를 관리형 서비스로 되파는 행위</em>다.
+        자체 서버에 설치해 내 서비스의 저장소로 쓰는 것은 예전과 동일하게 자유롭고 무료다.
+        나머지 구성요소도 같은 방식으로 점검했다.
+      </p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th>구성요소</th><th>라이선스</th><th>비용</th><th>판정</th><th>비고</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="item">Redis</td><td>AGPLv3 / RSALv2</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>관리형 서비스로 재판매할 때만 제한. 앱 유료 판매·광고·매출 전부 허용</td>
+          </tr>
+          <tr>
+            <td class="item">MySQL</td><td>GPLv2</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>서버로 띄워 쓰는 한 소스 공개 의무 없음</td>
+          </tr>
+          <tr>
+            <td class="item">Spring Boot</td><td>Apache 2.0</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td><td>제약 없음</td>
+          </tr>
+          <tr>
+            <td class="item">React Native</td><td>MIT</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td><td>제약 없음</td>
+          </tr>
+          <tr>
+            <td class="item">Nginx</td><td>BSD</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td><td>제약 없음</td>
+          </tr>
+          <tr>
+            <td class="item">Docker</td><td>Apache 2.0</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>Engine은 무조건 무료. Desktop도 개인 사용은 무료</td>
+          </tr>
+          <tr>
+            <td class="item">JDK (Zulu)</td><td>GPL+CE</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>현재 설치된 Zulu 유지. <strong>Oracle JDK로 바꾸면 조건부 유료</strong></td>
+          </tr>
+          <tr>
+            <td class="item">Google Maps SDK</td><td>상용 약관</td><td class="cost">0원</td>
+            <td class="stc"><span class="st chk">확인 필요</span></td>
+            <td><strong>Android 네이티브 SDK는 무제한 무료.</strong> 단 결제수단 등록이 필수</td>
+          </tr>
+          <tr>
+            <td class="item">카카오맵 SDK</td><td>상용 약관</td><td class="cost">0원</td>
+            <td class="stc"><span class="st chk">확인 필요</span></td>
+            <td>2026.07 정책 변경 — <strong>계정당 첫 번째 앱에만</strong> 무료 쿼터</td>
+          </tr>
+          <tr>
+            <td class="item">Let's Encrypt</td><td>무료 CA</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>도메인이 있어야 발급 가능 (→ 02)</td>
+          </tr>
+          <tr>
+            <td class="item">공공데이터포털</td><td>공공누리</td><td class="cost">0원</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>학교 위치 표준데이터. 출처 표기만 하면 됨</td>
+          </tr>
+          <tr>
+            <td class="item">Oracle Cloud</td><td>Always Free</td><td class="cost">0원</td>
+            <td class="stc"><span class="st act">조치 필요</span></td>
+            <td>비용은 0원이나 <strong>인스턴스 확보 자체가 불확실</strong> (→ 03)</td>
+          </tr>
+          <tr>
+            <td class="item">Play Console</td><td>—</td><td class="cost">$25</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+            <td>1회성. 예측 가능한 지출</td>
+          </tr>
+          <tr>
+            <td class="item">도메인</td><td>—</td><td class="cost">약 2만원/년</td>
+            <td class="stc"><span class="st chk">확인 필요</span></td>
+            <td><strong>선택이 아니라 필수다</strong> (→ 02)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══ 02 ══ -->
+  <div class="sep"><span>02 — 놓치기 쉬운 필수 항목</span></div>
+  <section>
+    <div class="col">
+      <h2>스택 목록에 안 적혀 있는 것들</h2>
+      <p>
+        기술 스택 표에는 등장하지 않지만 없으면 배포가 멈추는 항목들이다.
+        모두 10주차에 발견하면 늦는다.
+      </p>
+    </div>
+
+    <div class="finds">
+
+      <div class="find">
+        <div class="bar act"></div>
+        <div>
+          <div class="find-hd">
+            <h3>도메인 없이는 배포가 불가능하다</h3>
+            <span class="st act">조치 필요</span>
+          </div>
+          <p class="why">
+            Android 9부터 <strong>평문 HTTP 통신이 기본 차단</strong>된다. 따라서 서버는 HTTPS/WSS여야 하고,
+            그러려면 SSL 인증서가 필요하다. 그런데 Let's Encrypt는 <strong>도메인 이름이 있어야</strong> 발급된다 —
+            IP 주소로는 발급되지 않는다. 즉 도메인이 없으면 앱이 서버에 연결조차 못 한다.
+          </p>
+          <p class="do">
+            연 1~2만원짜리 도메인을 <strong>1주차에 구매</strong>한다. 비용이 부담되면
+            무료 DDNS(DuckDNS 등)로도 인증서 발급이 가능하나, 안정성이 떨어지므로 유료 도메인을 권한다.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <div class="bar chk"></div>
+        <div>
+          <div class="find-hd">
+            <h3>지도 SDK는 무료지만 카드 등록이 필요하다</h3>
+            <span class="st chk">확인 필요</span>
+          </div>
+          <p class="why">
+            Google Maps의 <strong>Android 네이티브 SDK는 사용량 제한 없이 무료</strong>다. 2025년 3월
+            월 $200 크레딧이 폐지되었지만 모바일 SDK는 여전히 무제한 무료 항목이다.
+            다만 <strong>결제수단을 등록해야 SDK가 활성화</strong>된다.
+            주의할 것은 Geocoding, Directions 같은 <strong>서비스 API는 과금 대상</strong>이라는 점 —
+            실수로 호출하면 요금이 발생한다.
+          </p>
+          <p class="do">
+            카드 등록 후 <strong>예산 알림을 1,000원으로 설정</strong>해 둔다. 지도 표시 외의 Maps API는
+            프로젝트에서 사용하지 않는다. 카카오맵을 쓸 경우 2026년 7월 정책 변경으로
+            <strong>계정당 첫 번째 앱에만</strong> 무료 쿼터가 적용되므로, 이 앱이 첫 앱인지 확인이 필요하다.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <div class="bar chk"></div>
+        <div>
+          <div class="find-hd">
+            <h3>개인 개발자는 연락처가 스토어에 공개된다</h3>
+            <span class="st chk">확인 필요</span>
+          </div>
+          <p class="why">
+            Google Play는 개발자 신원 확인을 요구하며, 개인 계정의 경우 스토어 등록 정보에
+            연락처가 노출될 수 있다. 익명 서비스를 만들면서 정작 개발자 본인의 주소가
+            공개되는 상황이 생길 수 있다.
+          </p>
+          <p class="do">
+            Play Console 가입 시 공개 범위를 확인한다. 부담스러우면 학교 주소나
+            우편물 대행 서비스 주소 사용을 검토한다. 어느 쪽이든 <strong>1주차 계정 생성 전에</strong> 결정한다.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <div class="bar chk"></div>
+        <div>
+          <div class="find-hd">
+            <h3>위치기반서비스사업 신고 여부</h3>
+            <span class="st chk">확인 필요</span>
+          </div>
+          <p class="why">
+            국내에서 개인 위치정보를 다루는 서비스는 방송통신위원회 신고 대상일 수 있다.
+            교내 시연·포트폴리오와 불특정 다수 대상 정식 출시는 요건이 다르다.
+          </p>
+          <p class="do">
+            <strong>"출시"의 정의를 먼저 확정</strong>한다. 정식 출시라면 신고 절차를 1주차부터 병행하고,
+            시연 목적이라면 해당 없음을 문서에 명시한다.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <div class="bar ok"></div>
+        <div>
+          <div class="find-hd">
+            <h3>개발 환경과 서버의 아키텍처가 일치한다</h3>
+            <span class="st ok">문제없음</span>
+          </div>
+          <p class="why">
+            개발 환경이 Apple Silicon(arm64)이고 Oracle Cloud의 Ampere A1도 arm64다.
+            빌드한 Docker 이미지가 서버에서 그대로 동작하므로 크로스 빌드 문제가 없다.
+          </p>
+          <p class="do">
+            x86 인스턴스(AMD micro)를 쓰게 되면 <code>--platform linux/amd64</code>가 필요하고
+            빌드가 느려진다. <strong>반드시 ARM 인스턴스로 확보</strong>한다.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══ 03 ══ -->
+  <div class="sep"><span>03 — 외부 승인 대기 시간</span></div>
+  <section>
+    <div class="col">
+      <h2>돈으로도 실력으로도 줄일 수 없는 것</h2>
+      <p>
+        이 프로젝트의 진짜 제약은 기술이 아니라 <strong>남이 처리해 주기를 기다리는 시간</strong>이다.
+        아래는 모두 순수 달력 시간이며, 병렬로 시작해야만 11주에 들어간다.
+      </p>
+    </div>
+
+    <div class="lead-times">
+      <div class="lt">
+        <div class="lt-name">테스터 12명 × 14일</div>
+        <div class="lt-track"><div class="lt-fill" style="width:100%;background:var(--clay)"></div></div>
+        <div class="lt-val">14일+</div>
+      </div>
+      <div class="lt">
+        <div class="lt-name">Play Console 본인확인</div>
+        <div class="lt-track"><div class="lt-fill" style="width:36%;background:var(--gold)"></div></div>
+        <div class="lt-val">2~5일</div>
+      </div>
+      <div class="lt">
+        <div class="lt-name">스토어 심사 (1회차)</div>
+        <div class="lt-track"><div class="lt-fill" style="width:28%;background:var(--gold)"></div></div>
+        <div class="lt-val">1~4일</div>
+      </div>
+      <div class="lt">
+        <div class="lt-name">심사 리젝 시 재제출</div>
+        <div class="lt-track"><div class="lt-fill" style="width:50%;background:var(--clay)"></div></div>
+        <div class="lt-val">+3~7일</div>
+      </div>
+      <div class="lt">
+        <div class="lt-name">Oracle 인스턴스 확보</div>
+        <div class="lt-track"><div class="lt-fill" style="width:14%;background:var(--accent)"></div></div>
+        <div class="lt-val">즉시 또는 불가</div>
+      </div>
+      <div class="lt">
+        <div class="lt-name">도메인 구매·DNS 전파</div>
+        <div class="lt-track"><div class="lt-fill" style="width:8%;background:var(--accent)"></div></div>
+        <div class="lt-val">수 시간</div>
+      </div>
+    </div>
+
+    <div class="finds">
+      <div class="find">
+        <div class="bar act"></div>
+        <div>
+          <div class="find-hd">
+            <h3>테스터 14일 시계</h3>
+            <span class="st act">조치 필요</span>
+          </div>
+          <p class="why">
+            2023년 11월 13일 이후 생성된 Play 개인 개발자 계정은, 프로덕션 출시 전
+            <strong>테스터 12명이 연속 14일간 옵트인을 유지</strong>해야 한다. 중간에 이탈하면 처음부터 다시 센다.
+            10주차 배포 시점에 시작하면 12주차 이후에나 출시가 가능하다.
+          </p>
+          <p class="do">
+            <strong>6주차에 불완전한 빌드로 비공개 테스트를 개시</strong>한다. 완성도가 아니라 시계를 돌리는 것이 목적이며,
+            테스트 기간 중에도 앱은 계속 갱신할 수 있다. 이탈에 대비해 <strong>15명 이상</strong>을 모집하고,
+            명단은 3주차까지 확보한다.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <div class="bar act"></div>
+        <div>
+          <div class="find-hd">
+            <h3>Oracle Cloud ARM 인스턴스 확보 실패</h3>
+            <span class="st act">조치 필요</span>
+          </div>
+          <p class="why">
+            Always Free의 Ampere ARM 인스턴스는 리전 용량 부족으로 생성이 거부되는 경우가 잦다
+            (<code>Out of host capacity</code>). 10주차에 처음 시도했다가 막히면 배포 일정 전체가 밀린다.
+          </p>
+          <p class="do">
+            <strong>1주차에 실제로 인스턴스를 띄워 본다.</strong> 확인만 하고 꺼두면 된다.
+            실패하면 대체 리전을 시도하고, 그래도 안 되면 저가 VPS(Vultr, Hetzner 등 월 5~7천원)를
+            대안으로 확정해 둔다. 예산에 미리 반영한다.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 04 ══ -->
+  <div class="sep"><span>04 — 기술 함정</span></div>
+  <section>
+    <div class="col">
+      <h2>불가능한 것은 없고, 어려운 것은 있다</h2>
+      <p>
+        모든 구성 기술이 검증된 표준이며 미해결 문제가 없다. 다만 순진하게 구현하면
+        동작하지 않는 지점이 다섯 개 있다.
+      </p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>항목</th><th>증상</th><th>대응</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="item">GPS 정확도</td>
+            <td>도심 오차 20~50m, 건물 사이 100m 이상.<br>동적 반경이 100m로 좁혀지면
+              가만히 서 있어도 화면이 깜빡임</td>
+            <td>최소 반경 하한선 150~200m, 좌표 이동 평균,
+              일정 거리 이상 이동 시에만 갱신</td>
+            <td class="stc"><span class="st act">조치 필요</span></td>
+          </tr>
+          <tr>
+            <td class="item">비대칭 반경</td>
+            <td>사용자마다 반경이 달라 A의 글은 B에게 보이는데
+              B의 글은 A에게 안 보임. 실시간 전달 대상이 모호해짐</td>
+            <td><strong>경로 분리</strong> — 조회는 동적 반경,
+              실시간 전달은 고정 1km</td>
+            <td class="stc"><span class="st act">조치 필요</span></td>
+          </tr>
+          <tr>
+            <td class="item">동적 반경 질의 비용</td>
+            <td>100m에서 10km까지 2배씩 넓히면 최대 7회 질의.
+              이동할 때마다 반복되면 부하</td>
+            <td>격자별 메시지 수 사전 집계,
+              직전 반경에서 시작, 결과 캐싱</td>
+            <td class="stc"><span class="st chk">확인 필요</span></td>
+          </tr>
+          <tr>
+            <td class="item">MySQL 공간 인덱스</td>
+            <td><code>ST_Distance_Sphere</code> 단독 사용 시
+              인덱스를 타지 않아 풀스캔</td>
+            <td><code>MBRContains</code>로 사각 범위 선필터 후
+              정밀 거리 계산</td>
+            <td class="stc"><span class="st chk">확인 필요</span></td>
+          </tr>
+          <tr>
+            <td class="item">백그라운드 WebSocket</td>
+            <td>앱이 백그라운드로 가면 소켓 종료.
+              셀룰러↔Wi-Fi 전환 시 끊김</td>
+            <td>재연결 + timestamp 기반 복구.
+              영구 저장 구조라 복구가 단순함</td>
+            <td class="stc"><span class="st ok">문제없음</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <p style="font-size:15px;color:var(--muted)">
+        GPS 정확도 문제는 <strong>시뮬레이터에서 절대 드러나지 않는다.</strong>
+        6주차에 실기기를 들고 야외에서 확인하는 일정을 명시적으로 잡아야 한다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 05 ══ -->
+  <div class="sep"><span>05 — 총 예산</span></div>
+  <section>
+    <div class="col">
+      <div class="total">
+        <div class="total-row"><span>Google Play Console (1회)</span><span>35,000원</span></div>
+        <div class="total-row"><span>도메인 (1년)</span><span>20,000원</span></div>
+        <div class="total-row"><span>서버 — Oracle Always Free</span><span>0원</span></div>
+        <div class="total-row"><span>전 구성요소 라이선스</span><span>0원</span></div>
+        <div class="total-row"><span>예비 — VPS 대체 시 (11주)</span><span>+18,000원</span></div>
+        <div class="total-row"><span>합계</span><span>55,000 ~ 73,000원</span></div>
+      </div>
+      <p style="font-size:15px;color:var(--muted)">
+        Play Console $25를 환율 1,400원 기준으로 환산했다. Oracle 인스턴스를 확보하면
+        예비 항목은 발생하지 않는다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 06 ══ -->
+  <div class="sep"><span>06 — 1주차 실행 목록</span></div>
+  <section class="col">
+    <h2>지금 손대야 하는 것</h2>
+    <p>
+      아래 여섯 개는 모두 <strong>결과를 기다려야 하는 항목</strong>이다.
+      개발보다 먼저 시작해야 나중에 병목이 되지 않는다.
+    </p>
+
+    <div class="check">
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>Oracle Cloud ARM 인스턴스 생성 시도</b>
+        <p>성공 여부만 확인하고 꺼둔다. 실패하면 대체 리전 또는 VPS를 확정한다.</p>
+      </div></div>
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>Google Play Console 계정 생성 및 본인확인</b>
+        <p>$25 결제. 연락처 공개 범위를 확인한 뒤 진행한다. 승인까지 며칠 걸린다.</p>
+      </div></div>
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>도메인 구매</b>
+        <p>HTTPS/WSS의 전제조건. 없으면 10주차 배포가 막힌다.</p>
+      </div></div>
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>키프리스에서 "스밈" 상표 검색</b>
+        <p>9류(소프트웨어)와 42류(SaaS)를 확인한다. 등록된 것이 없으면 그대로 진행.</p>
+      </div></div>
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>지도 SDK 선택 및 키 발급</b>
+        <p>Google Maps는 카드 등록 후 예산 알림 설정. 카카오맵이면 첫 번째 앱인지 확인한다.</p>
+      </div></div>
+      <div class="ck"><div class="ck-box"></div><div>
+        <b>"출시"의 정의 확정</b>
+        <p>정식 출시인지 시연인지에 따라 위치기반서비스사업 신고 여부가 갈린다.</p>
+      </div></div>
+    </div>
+
+    <h3>테스터 명단은 3주차까지</h3>
+    <p style="font-size:15px;color:var(--muted)">
+      6주차에 비공개 테스트를 열려면 그때 이미 12명이 준비되어 있어야 한다.
+      이탈을 감안해 15명 이상을 확보하고, Google 계정 이메일을 미리 받아 둔다.
+    </p>
+  </section>
+
+  <footer>
+    <span>스밈 의존성 점검표</span>
+    <span>2026.09.15 · 판정 22건</span>
+  </footer>
+
+</div>
