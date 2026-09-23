@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "스밈",
+    "slug": "smim",
+    "scheme": "smim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F7F5F0",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kr.smim.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "지금 계신 자리에 남겨진 기록을 보여주기 위해 사용합니다. 앱이 켜져 있을 때만 확인하며, 위치를 다른 사용자에게 공개하지 않습니다."
+      }
+    },
+    "android": {
+      "package": "kr.smim.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F5F0",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "지금 계신 자리에 남겨진 기록을 보여주기 위해 사용합니다.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
+    ]
+  }
+}
