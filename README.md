@@ -20,7 +20,7 @@
 | 영역 | 기술 |
 |---|---|
 | 모바일 | React Native (Expo) · `expo-location` |
-| 서버 | Spring Boot · Java 21 |
+| 서버 | Spring Boot 4.1.1 · Java 17 |
 | 실시간 | WebSocket (STOMP) |
 | 영속 저장 | PostgreSQL 17 + PostGIS 3.5 |
 | 현재 상태 | Redis 7.4 (GEO) |
@@ -68,11 +68,22 @@ docker compose exec postgres psql -U smim -d smim -c "SELECT postgis_full_versio
 
 | 항목 | 값 |
 |---|---|
-| Project | Gradle |
+| Project | Gradle - Groovy |
 | Language | Java |
-| Java | 21 |
+| Spring Boot | 4.1.1 (스냅샷·마일스톤이 아닌 최신 정식) |
 | Group | `com.smim` |
 | Artifact | `server` |
+| Package name | `com.smim.server` |
+| Packaging | Jar |
+| **Configuration** | **YAML** |
+| Java | 17 |
+
+> **Configuration 을 YAML 로 고른다.** 저장소에 이미 `application.yml` 이 있어
+> Properties 로 만들면 설정이 둘로 갈린다.
+>
+> **Java 17 로 충분하다.** 21 의 가상 스레드는 동시 요청이 수천 건일 때 의미가 있고
+> 이 프로젝트 규모에서는 측정에 차이가 나지 않는다. 나중에 올리려면
+> `build.gradle` 의 `toolchain` 한 줄만 바꾸면 된다.
 
 **의존성**
 
@@ -84,14 +95,43 @@ docker compose exec postgres psql -U smim -d smim -c "SELECT postgis_full_versio
 - Flyway Migration
 - Validation
 
-생성 후 `build.gradle`에 아래 두 줄을 **직접 추가**한다. Initializr에 항목이 없다.
+생성 후 `build.gradle`의 의존성을 아래로 맞춘다.
 
 ```gradle
-implementation 'org.hibernate.orm:hibernate-spatial'          // GEOGRAPHY 타입 매핑
-implementation 'org.flywaydb:flyway-database-postgresql'       // Flyway 10+ 에서 필수
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+
+    implementation 'org.hibernate.orm:hibernate-spatial'        // GEOGRAPHY 매핑
+    implementation 'org.flywaydb:flyway-database-postgresql'    // PostgreSQL 방언
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
 ```
 
-그리고 Initializr가 만든 `application.properties`는 **삭제**한다. 이 저장소의 `application.yml`을 사용한다.
+> **`flyway-core` 가 아니라 `spring-boot-starter-flyway` 를 쓴다.**
+> Boot 4 는 자동 설정이 모듈로 분리되어, `flyway-core` 만 있으면 라이브러리는 클래스패스에
+> 있지만 Spring 이 실행하지 않는다. **에러 없이 조용히 건너뛰므로** 테이블을 확인하지 않으면
+> 모르고 지나간다.
+>
+> `flyway-database-postgresql` 도 빠뜨리면 `Unsupported Database: PostgreSQL` 로 기동에 실패한다.
+
+압축을 풀 때 **기존 파일을 덮어쓰지 않도록** 주의한다. 아래 셋은 저장소의 것을 유지한다.
+
+```
+server/src/main/resources/application.yml
+server/src/main/resources/db/migration/V1__init.sql
+server/src/main/resources/db/migration/V2__active_session.sql
+```
+
+해제 후 `git status` 로 이 파일들이 수정되지 않았는지 확인한다.
 
 ### 4. 서버 실행
 
@@ -100,7 +140,14 @@ cd server
 ./gradlew bootRun
 ```
 
-최초 실행 시 Flyway가 `V1__init.sql`로 테이블을 만든다.
+최초 실행 시 Flyway가 `V1`·`V2`를 적용한다. **테이블이 실제로 생겼는지 확인한다.**
+
+```bash
+docker compose exec postgres psql -U smim -d smim -P pager=off -c "\dt"
+```
+
+`message` `report` `user_block` `banned_area` `active_session` 과
+`flyway_schema_history` 가 보이면 정상이다.
 
 ---
 
