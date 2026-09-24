@@ -1,16 +1,43 @@
-# ── Gradle ────────────────────────────
-.gradle/
+HELP.md
+.gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
-
-# ── 환경별 설정 (시크릿이 들어갈 수 있음) ──
+!**/src/main/**/build/
+!**/src/test/**/build/
 src/main/resources/application-local.yml
 src/main/resources/application-prod.yml
 
-# ── IntelliJ ──────────────────────────
-out/
-*.iws
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
 
-# ── 로그 ──────────────────────────────
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Logs ###
 logs/
 *.log
