@@ -59,4 +59,8 @@ export const mockClient: ApiClient = {
   async postMessage() {
     return delay(undefined);
   },
+
+  async sendPresence() {
+    return delay(undefined, 80);
+  },
 };

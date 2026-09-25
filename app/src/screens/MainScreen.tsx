@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   SectionList,
@@ -11,12 +12,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { api, type Message } from '../api';
+import { api, DEFAULT_CONFIG, isServerConnected, type Message, type RuntimeConfig } from '../api';
 import { MOCK_EMPTY } from '../api/mockClient';
 import { MessageRow } from '../components/MessageRow';
 import { MenuIcon, PlaceMarkIcon, ReplyIcon, SendIcon } from '../components/Icons';
 import { TimeSeparator } from '../components/TimeSeparator';
 import { dayKey, isWideGap } from '../lib/time';
+import { useLocation } from '../lib/useLocation';
+import { usePresence, type PresenceState } from '../lib/usePresence';
 import { font, spacing } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
@@ -52,10 +55,22 @@ export function MainScreen() {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const listRef = useRef<SectionList<Message, Section>>(null);
 
+  // 실패하면 내장 기본값으로 폴백한다 (docs/location-policy.md 3-2)
+  const [config, setConfig] = useState<RuntimeConfig>(DEFAULT_CONFIG);
   useEffect(() => {
+    api.getConfig().then(setConfig).catch(() => {});
+  }, []);
+
+  // distanceInterval 이 move_threshold 라서 콜백이 곧 "화면 재조회할 만큼 움직였다" 는 뜻이다
+  const location = useLocation(config.moveThresholdM);
+  const coords = location.status === 'ready' ? location.coords : null;
+  const presence = usePresence(coords, config.heartbeatSec);
+
+  useEffect(() => {
+    if (!coords) return;
     let alive = true;
     api
-      .getMessages({ at: { lat: 37.5563, lon: 126.9238 }, radiusM: 300 })
+      .getMessages({ at: coords, radiusM: config.radiusM })
       .then((page) => {
         if (alive) setMessages(page.messages);
       })
@@ -65,7 +80,7 @@ export function MainScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [coords, config.radiusM]);
 
   const sections = useMemo(() => (messages ? buildSections(messages) : []), [messages]);
   const isEmpty = messages !== null && messages.length === 0;
@@ -75,7 +90,12 @@ export function MainScreen() {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { borderBottomColor: palette.ruleSoft }]}>
-        <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
+        <View>
+          <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
+          {__DEV__ && isServerConnected && (
+            <Text style={[styles.devStatus, { color: palette.muted }]}>{describePresence(presence)}</Text>
+          )}
+        </View>
         <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
@@ -91,7 +111,28 @@ export function MainScreen() {
         </View>
       </View>
 
-      {messages === null ? (
+      {location.status === 'denied' || location.status === 'error' ? (
+        <View style={styles.center}>
+          <PlaceMarkIcon color={palette.rule} dot={palette.muted} />
+          <View style={styles.emptyText}>
+            <Text style={[styles.emptyTitle, { color: palette.ink }]}>
+              {location.status === 'denied' ? '위치를 알아야\n이 자리의 기록을 보여드려요' : '지금 위치를\n확인하지 못했어요'}
+            </Text>
+            <Text style={[styles.emptyBody, { color: palette.muted }]}>
+              앱이 켜져 있을 때만 확인하며,{'\n'}위치를 다른 사용자에게 공개하지 않습니다.
+            </Text>
+          </View>
+          {location.status === 'denied' && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => Linking.openSettings()}
+              style={[styles.settingsButton, { borderColor: palette.rule }]}
+            >
+              <Text style={[styles.settingsLabel, { color: palette.ink }]}>설정에서 허용하기</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : messages === null ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.muted} />
         </View>
@@ -148,6 +189,18 @@ export function MainScreen() {
   );
 }
 
+/** 개발 중에만 보이는 서버 통신 상태 */
+function describePresence(p: PresenceState): string {
+  switch (p.status) {
+    case 'idle':
+      return 'server · 위치 대기';
+    case 'ok':
+      return `server · ok ${p.at.toTimeString().slice(0, 8)}`;
+    case 'failed':
+      return `server · 실패 ${p.error instanceof Error ? p.error.message : ''}`;
+  }
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -166,6 +219,11 @@ const styles = StyleSheet.create({
     fontFamily: font.mono,
     fontSize: 12,
     letterSpacing: 1.68, // 0.14em × 12px
+  },
+  devStatus: {
+    fontFamily: font.mono,
+    fontSize: 10,
+    marginTop: 2,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   iconButton: {
@@ -196,6 +254,18 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 25,
     textAlign: 'center',
+  },
+  settingsButton: {
+    height: spacing.touchTarget,
+    paddingHorizontal: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsLabel: {
+    fontFamily: font.sansMedium,
+    fontSize: 14.5,
   },
   composer: {
     flexDirection: 'row',
