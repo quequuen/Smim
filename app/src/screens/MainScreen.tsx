@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -12,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, DEFAULT_CONFIG, isServerConnected, type Message, type RuntimeConfig } from '../api';
 import { MOCK_EMPTY } from '../api/mockClient';
 import { MessageRow } from '../components/MessageRow';
@@ -54,6 +56,13 @@ export function MainScreen() {
   const { palette, isDark } = useTheme();
   const [messages, setMessages] = useState<Message[] | null>(null);
   const listRef = useRef<SectionList<Message, Section>>(null);
+  const insets = useSafeAreaInsets();
+  const keyboardShown = useKeyboardShown();
+
+  // 키보드가 올라오면 목록이 줄어든다 — 최신 메시지가 가려지지 않도록 바닥으로 붙인다
+  useEffect(() => {
+    if (keyboardShown) listRef.current?.getScrollResponder()?.scrollToEnd({ animated: true });
+  }, [keyboardShown]);
 
   // 실패하면 내장 기본값으로 폴백한다 (docs/location-policy.md 3-2)
   const [config, setConfig] = useState<RuntimeConfig>(DEFAULT_CONFIG);
@@ -86,7 +95,12 @@ export function MainScreen() {
   const isEmpty = messages !== null && messages.length === 0;
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.paper }]}>
+    // 화면 전체를 감싸야 목록이 줄어들고 입력창이 키보드 위로 올라온다.
+    // Android 도 edge-to-edge 라 창이 리사이즈되지 않으므로 iOS 와 같이 padding 을 쓴다
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={[styles.root, { backgroundColor: palette.paper, paddingTop: insets.top }]}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { borderBottomColor: palette.ruleSoft }]}>
@@ -161,32 +175,53 @@ export function MainScreen() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.messageGap }} />}
           contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => listRef.current?.getScrollResponder()?.scrollToEnd({ animated: false })}
         />
       )}
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.composer, { borderTopColor: palette.ruleSoft }]}>
-          <TextInput
-            accessibilityLabel="이 자리에 남길 말"
-            placeholder={isEmpty ? '이 자리에 처음으로 남기기' : '이 자리에 남기기'}
-            placeholderTextColor={palette.muted}
-            style={[
-              styles.input,
-              {
-                color: palette.ink,
-                backgroundColor: palette.surface,
-                borderColor: isEmpty ? palette.muted : palette.rule,
-              },
-            ]}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="남기기" style={[styles.send, { backgroundColor: palette.ink }]}>
-            <SendIcon color={palette.paper} />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+      <View
+        style={[
+          styles.composer,
+          // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
+          { borderTopColor: palette.ruleSoft, paddingBottom: keyboardShown ? 12 : Math.max(insets.bottom, 20) },
+        ]}
+      >
+        <TextInput
+          accessibilityLabel="이 자리에 남길 말"
+          placeholder={isEmpty ? '이 자리에 처음으로 남기기' : '이 자리에 남기기'}
+          placeholderTextColor={palette.muted}
+          style={[
+            styles.input,
+            {
+              color: palette.ink,
+              backgroundColor: palette.surface,
+              borderColor: isEmpty ? palette.muted : palette.rule,
+            },
+          ]}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel="남기기" style={[styles.send, { backgroundColor: palette.ink }]}>
+          <SendIcon color={palette.paper} />
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
+}
+
+function useKeyboardShown(): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    // iOS 는 will 이벤트가 있어 애니메이션과 맞출 수 있다. Android 는 did 만 온다
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const subs = [
+      Keyboard.addListener(showEvt, () => setShown(true)),
+      Keyboard.addListener(hideEvt, () => setShown(false)),
+    ];
+    return () => subs.forEach((sub) => sub.remove());
+  }, []);
+  return shown;
 }
 
 /** 개발 중에만 보이는 서버 통신 상태 */
@@ -202,10 +237,7 @@ function describePresence(p: PresenceState): string {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 44,
-  },
+  root: { flex: 1 },
   header: {
     height: spacing.headerHeight,
     paddingLeft: spacing.screenX,
@@ -273,7 +305,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {

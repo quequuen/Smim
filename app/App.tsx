@@ -6,6 +6,7 @@ import {
 } from '@expo-google-fonts/gothic-a1';
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MainScreen } from './src/screens/MainScreen';
 import { darkPalette, lightPalette } from './src/theme/tokens';
 
@@ -29,5 +30,9 @@ export default function App() {
     );
   }
 
-  return <MainScreen />;
+  return (
+    <SafeAreaProvider>
+      <MainScreen />
+    </SafeAreaProvider>
+  );
 }
