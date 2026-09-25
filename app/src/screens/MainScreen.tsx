@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   SectionList,
@@ -11,12 +13,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { api, type Message } from '../api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api, DEFAULT_CONFIG, isServerConnected, type Message, type RuntimeConfig } from '../api';
 import { MOCK_EMPTY } from '../api/mockClient';
 import { MessageRow } from '../components/MessageRow';
 import { MenuIcon, PlaceMarkIcon, ReplyIcon, SendIcon } from '../components/Icons';
 import { TimeSeparator } from '../components/TimeSeparator';
 import { dayKey, isWideGap } from '../lib/time';
+import { useLocation } from '../lib/useLocation';
+import { usePresence, type PresenceState } from '../lib/usePresence';
 import { font, spacing } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
@@ -51,11 +56,30 @@ export function MainScreen() {
   const { palette, isDark } = useTheme();
   const [messages, setMessages] = useState<Message[] | null>(null);
   const listRef = useRef<SectionList<Message, Section>>(null);
+  const insets = useSafeAreaInsets();
+  const keyboardShown = useKeyboardShown();
+
+  // 키보드가 올라오면 목록이 줄어든다 — 최신 메시지가 가려지지 않도록 바닥으로 붙인다
+  useEffect(() => {
+    if (keyboardShown) listRef.current?.getScrollResponder()?.scrollToEnd({ animated: true });
+  }, [keyboardShown]);
+
+  // 실패하면 내장 기본값으로 폴백한다 (docs/location-policy.md 3-2)
+  const [config, setConfig] = useState<RuntimeConfig>(DEFAULT_CONFIG);
+  useEffect(() => {
+    api.getConfig().then(setConfig).catch(() => {});
+  }, []);
+
+  // distanceInterval 이 move_threshold 라서 콜백이 곧 "화면 재조회할 만큼 움직였다" 는 뜻이다
+  const location = useLocation(config.moveThresholdM);
+  const coords = location.status === 'ready' ? location.coords : null;
+  const presence = usePresence(coords, config.heartbeatSec);
 
   useEffect(() => {
+    if (!coords) return;
     let alive = true;
     api
-      .getMessages({ at: { lat: 37.5563, lon: 126.9238 }, radiusM: 300 })
+      .getMessages({ at: coords, radiusM: config.radiusM })
       .then((page) => {
         if (alive) setMessages(page.messages);
       })
@@ -65,17 +89,27 @@ export function MainScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [coords, config.radiusM]);
 
   const sections = useMemo(() => (messages ? buildSections(messages) : []), [messages]);
   const isEmpty = messages !== null && messages.length === 0;
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.paper }]}>
+    // 화면 전체를 감싸야 목록이 줄어들고 입력창이 키보드 위로 올라온다.
+    // Android 도 edge-to-edge 라 창이 리사이즈되지 않으므로 iOS 와 같이 padding 을 쓴다
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={[styles.root, { backgroundColor: palette.paper, paddingTop: insets.top }]}
+    >
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { borderBottomColor: palette.ruleSoft }]}>
-        <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
+        <View>
+          <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
+          {__DEV__ && isServerConnected && (
+            <Text style={[styles.devStatus, { color: palette.muted }]}>{describePresence(presence)}</Text>
+          )}
+        </View>
         <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
@@ -91,7 +125,28 @@ export function MainScreen() {
         </View>
       </View>
 
-      {messages === null ? (
+      {location.status === 'denied' || location.status === 'error' ? (
+        <View style={styles.center}>
+          <PlaceMarkIcon color={palette.rule} dot={palette.muted} />
+          <View style={styles.emptyText}>
+            <Text style={[styles.emptyTitle, { color: palette.ink }]}>
+              {location.status === 'denied' ? '위치를 알아야\n이 자리의 기록을 보여드려요' : '지금 위치를\n확인하지 못했어요'}
+            </Text>
+            <Text style={[styles.emptyBody, { color: palette.muted }]}>
+              앱이 켜져 있을 때만 확인하며,{'\n'}위치를 다른 사용자에게 공개하지 않습니다.
+            </Text>
+          </View>
+          {location.status === 'denied' && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => Linking.openSettings()}
+              style={[styles.settingsButton, { borderColor: palette.rule }]}
+            >
+              <Text style={[styles.settingsLabel, { color: palette.ink }]}>설정에서 허용하기</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : messages === null ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.muted} />
         </View>
@@ -120,39 +175,69 @@ export function MainScreen() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.messageGap }} />}
           contentContainerStyle={styles.listContent}
           stickySectionHeadersEnabled={false}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => listRef.current?.getScrollResponder()?.scrollToEnd({ animated: false })}
         />
       )}
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.composer, { borderTopColor: palette.ruleSoft }]}>
-          <TextInput
-            accessibilityLabel="이 자리에 남길 말"
-            placeholder={isEmpty ? '이 자리에 처음으로 남기기' : '이 자리에 남기기'}
-            placeholderTextColor={palette.muted}
-            style={[
-              styles.input,
-              {
-                color: palette.ink,
-                backgroundColor: palette.surface,
-                borderColor: isEmpty ? palette.muted : palette.rule,
-              },
-            ]}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="남기기" style={[styles.send, { backgroundColor: palette.ink }]}>
-            <SendIcon color={palette.paper} />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+      <View
+        style={[
+          styles.composer,
+          // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
+          { borderTopColor: palette.ruleSoft, paddingBottom: keyboardShown ? 12 : Math.max(insets.bottom, 20) },
+        ]}
+      >
+        <TextInput
+          accessibilityLabel="이 자리에 남길 말"
+          placeholder={isEmpty ? '이 자리에 처음으로 남기기' : '이 자리에 남기기'}
+          placeholderTextColor={palette.muted}
+          style={[
+            styles.input,
+            {
+              color: palette.ink,
+              backgroundColor: palette.surface,
+              borderColor: isEmpty ? palette.muted : palette.rule,
+            },
+          ]}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel="남기기" style={[styles.send, { backgroundColor: palette.ink }]}>
+          <SendIcon color={palette.paper} />
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
+function useKeyboardShown(): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    // iOS 는 will 이벤트가 있어 애니메이션과 맞출 수 있다. Android 는 did 만 온다
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const subs = [
+      Keyboard.addListener(showEvt, () => setShown(true)),
+      Keyboard.addListener(hideEvt, () => setShown(false)),
+    ];
+    return () => subs.forEach((sub) => sub.remove());
+  }, []);
+  return shown;
+}
+
+/** 개발 중에만 보이는 서버 통신 상태 */
+function describePresence(p: PresenceState): string {
+  switch (p.status) {
+    case 'idle':
+      return 'server · 위치 대기';
+    case 'ok':
+      return `server · ok ${p.at.toTimeString().slice(0, 8)}`;
+    case 'failed':
+      return `server · 실패 ${p.error instanceof Error ? p.error.message : ''}`;
+  }
+}
+
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 44,
-  },
+  root: { flex: 1 },
   header: {
     height: spacing.headerHeight,
     paddingLeft: spacing.screenX,
@@ -166,6 +251,11 @@ const styles = StyleSheet.create({
     fontFamily: font.mono,
     fontSize: 12,
     letterSpacing: 1.68, // 0.14em × 12px
+  },
+  devStatus: {
+    fontFamily: font.mono,
+    fontSize: 10,
+    marginTop: 2,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   iconButton: {
@@ -197,13 +287,24 @@ const styles = StyleSheet.create({
     lineHeight: 25,
     textAlign: 'center',
   },
+  settingsButton: {
+    height: spacing.touchTarget,
+    paddingHorizontal: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsLabel: {
+    fontFamily: font.sansMedium,
+    fontSize: 14.5,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {

@@ -10,4 +10,6 @@ export interface ApiClient {
   getConfig(): Promise<RuntimeConfig>;
   getMessages(args: { at: Coords; radiusM: number; cursor?: string | null }): Promise<MessagePage>;
   postMessage(args: { at: Coords; content: string; replyToId?: number }): Promise<void>;
+  /** 하트비트. 실시간 전달 대상에 포함되기 위한 위치 등록 — 화면 갱신과 무관 */
+  sendPresence(args: { at: Coords; sessionId: string }): Promise<void>;
 }

@@ -149,6 +149,29 @@ docker compose exec postgres psql -U smim -d smim -P pager=off -c "\dt"
 `message` `report` `user_block` `banned_area` `active_session` 과
 `flyway_schema_history` 가 보이면 정상이다.
 
+### 5. 앱 실행 (실기기 · Expo Go)
+
+```bash
+cd app
+cp .env.example .env    # EXPO_PUBLIC_API_URL 에 맥의 LAN IP 를 넣는다
+npm install
+npx expo start
+```
+
+> **서버 주소에 `localhost`를 쓰면 안 된다.** 폰 입장에서 localhost는 폰 자신이다.
+> 맥의 LAN IP를 쓴다 — `ipconfig getifaddr en0`. 폰과 맥이 같은 Wi-Fi에 있어야 한다.
+> `.env`를 바꾼 뒤에는 `npx expo start -c` 로 캐시를 비워야 반영된다.
+
+`EXPO_PUBLIC_API_URL`을 비워 두면 서버 없이 mock으로 돈다.
+
+폰에서 위치를 허용하면 앱이 `heartbeatSec`(45초)마다 `POST /presence`로 좌표를 보낸다.
+개발 빌드에서는 헤더의 "이 근처" 아래에 `server · ok 14:02:11` 처럼 마지막 응답 시각이 뜬다.
+서버 쪽에서 받은 좌표를 보려면 DEBUG 로그를 켠다.
+
+```bash
+./gradlew bootRun --args='--logging.level.com.smim=debug'
+```
+
 ---
 
 ## 문서
