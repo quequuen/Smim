@@ -2,7 +2,7 @@
 
 앱과 서버가 주고받는 형태. **mock을 이 형태로 만들면 서버가 붙을 때 교체만 하면 된다.**
 
-- 관련 문서: [`ui-spec.md`](ui-spec.md) · [`location-policy.md`](location-policy.md) · [`tracks.md`](tracks.md)
+- 관련 문서: [`location-policy.md`](location-policy.md) · [`tracks.md`](tracks.md) · [D7 시간 표기](decisions/D7-time-labeling.md)
 - 최종 수정: 2026-09-23
 
 > **이 문서의 수명** — 서버에 springdoc을 붙이면 `/swagger-ui.html`이 코드에서 자동 생성된다.

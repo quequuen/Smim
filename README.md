@@ -17,22 +17,12 @@
 
 ## 문제 정의
 
-실제 공간에는 **그 자리에 있어야만 의미가 생기는 정보**가 있습니다. 이 골목의 지금 분위기, 작년 봄
-이 자리의 벚꽃, 여기서 누가 무엇을 기다렸는지 같은 것들입니다. 그런데 지금의 서비스는 이런 정보를
-담지 못합니다.
-
-| | 한계 |
-|---|---|
-| 메신저 | `사람 → 채팅방 → 대화` 구조라 **아는 사람과의 대화만** 담긴다 |
-| SNS | 위치를 태그로만 써서 게시물이 **장소가 아니라 계정에** 귀속된다 |
-| 지도 리뷰 | 상점 정보에 한정된다 |
+사람이 아닌 **공간에 기록이 귀속되는 커뮤니케이션**은 기존 메신저·SNS에서 다루기 어렵습니다.
+Smim은 메시지를 특정 계정이 아닌 **좌표에 귀속**시켜, 그 장소에 있는 사람만 읽을 수 있도록 합니다.
 
 <p align="center">
   <img src="docs/img/problem.png" width="760" alt="사람 중심 구조와 공간 중심 구조의 차이">
 </p>
-
-결과적으로 **장소에 귀속되어 시간이 지나도 그 자리에 남는 기록**을 담을 그릇이 비어 있습니다.
-물리적으로는 방명록·낙서가 하던 역할입니다.
 
 ---
 
@@ -164,58 +154,23 @@ smim.presence.store: postgres   # postgres | redis
 
 ## 실행 방법
 
-**사전 준비** — Docker · JDK 17 · Node 20+ · 안드로이드 실기기(Expo Go)
+### 요구사항
 
-### 1. 인프라
+- Docker
+- JDK 17
+- Node.js 20+
+- Expo Go
 
-```bash
-cp .env.example .env     # 비밀번호를 채운다
-docker compose up -d postgres
-```
+### 실행
 
-PostGIS가 정상인지 확인합니다.
+1. `.env.example` → `.env`
+2. `docker compose up -d`
+3. `cd server && ./gradlew bootRun`
+4. `cd app && npm install && npx expo start`
 
-```bash
-docker compose exec postgres psql -U smim -d smim -P pager=off -c "SELECT postgis_full_version();"
-```
+> 실제 기기 테스트 시 Mac과 기기가 동일한 Wi-Fi에 있어야 합니다.
 
-> 포트가 다른 프로젝트와 겹치면 `.env` 의 `POSTGRES_PORT` · `REDIS_PORT` · `SERVER_PORT` 만
-> 바꾸면 됩니다. 기본값은 `5433` · `6380` · `8082` 입니다 (8081은 Expo Metro가 씁니다).
-
-### 2. 서버
-
-```bash
-cd server && ./gradlew bootRun
-```
-
-Flyway가 마이그레이션을 적용합니다. **테이블이 실제로 생겼는지 확인하세요.**
-
-```bash
-docker compose exec postgres psql -U smim -d smim -P pager=off -c "\dt"
-```
-
-`message` `report` `user_block` `banned_area` `active_session` 과 `flyway_schema_history` 가
-보이면 정상입니다.
-
-### 3. 앱 (실기기)
-
-```bash
-cd app
-cp .env.example .env     # EXPO_PUBLIC_API_URL 에 맥의 LAN IP
-npm install
-npx expo start
-```
-
-> **`localhost` 를 쓰면 안 됩니다.** 폰 입장에서 localhost는 폰 자신입니다.
-> `ipconfig getifaddr en0` 으로 맥의 LAN IP를 확인하고, 폰과 맥이 같은 Wi-Fi에 있어야 합니다.
-> `.env` 를 바꾼 뒤에는 `npx expo start -c` 로 캐시를 비웁니다.
-
-`EXPO_PUBLIC_API_URL` 을 비워 두면 서버 없이 mock으로 돕니다.
-서버가 받은 좌표를 보려면 DEBUG 로그를 켭니다.
-
-```bash
-./gradlew bootRun --args='--logging.level.com.smim=debug'
-```
+포트 변경, 앱의 서버 주소 설정, 동작 확인 방법은 [`docs/setup.md`](docs/setup.md)에 있습니다.
 
 ---
 
@@ -242,15 +197,18 @@ npx expo start
 | [`docs/scope.md`](docs/scope.md) | MVP·확장 범위, 주차별 일정, 포기 순서 |
 | [`docs/api.md`](docs/api.md) | 앱↔서버 계약, 인증, 엔드포인트 |
 | [`docs/location-policy.md`](docs/location-policy.md) | 반경 정책, 위치 갱신 규칙, `/config` 스펙 |
-| [`docs/ui-spec.md`](docs/ui-spec.md) | 시간 표기, 익명 표식, 색·타이포 토큰 |
 
 ## 설계 결정
 
-| | 결정 |
-|---|---|
-| **D1** | 반경의 중심은 사용자다 — 격자로 나누지 않는다 |
-| **D2** | 반경은 밀도에 따라 바뀌지 않는다 — 기본 300m, 실험으로 확정 |
-| **D3** | 메시지는 만료되지 않는다 |
-| **D4** | 이름은 없고, 구간 표식만 있다 |
-| **D5** | 실시간 전달과 영구 저장을 동시에 수행한다 |
-| **D6** | 관계 대신 반응으로 재방문을 만든다 |
+구조를 규정하는 일곱 개의 결정입니다. 배경·대안·기각 이유는
+**[`docs/decisions/`](docs/decisions/)** 에 하나씩 기록했습니다.
+
+| | 결정 | |
+|---|---|---|
+| **D1** | 반경의 중심은 사용자다 — 격자로 나누지 않는다 | [→](docs/decisions/D1-user-centered-radius.md) |
+| **D2** | 반경은 밀도에 따라 바뀌지 않는다 — 기본 300m | [→](docs/decisions/D2-fixed-radius.md) |
+| **D3** | 메시지는 만료되지 않는다 | [→](docs/decisions/D3-no-expiry.md) |
+| **D4** | 이름은 없고, 구간 표식만 있다 | [→](docs/decisions/D4-anonymous-marker.md) |
+| **D5** | 실시간 전달과 영구 저장을 동시에 수행한다 | [→](docs/decisions/D5-hybrid-delivery.md) |
+| **D6** | 관계 대신 반응으로 재방문을 만든다 | [→](docs/decisions/D6-reaction-over-relationship.md) |
+| **D7** | 시간은 날짜를 주 라벨로, 경과를 보조로 표기한다 | [→](docs/decisions/D7-time-labeling.md) |
