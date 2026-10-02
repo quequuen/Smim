@@ -10,13 +10,13 @@
     "backgroundColor": "#F7F5F0",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "kr.smim.app",
+      "bundleIdentifier": "app.smim",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "지금 계신 자리에 남겨진 기록을 보여주기 위해 사용합니다. 앱이 켜져 있을 때만 확인하며, 위치를 다른 사용자에게 공개하지 않습니다."
       }
     },
     "android": {
-      "package": "kr.smim.app",
+      "package": "app.smim",
       "adaptiveIcon": {
         "backgroundColor": "#F7F5F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
