@@ -1,8 +1,9 @@
 import type { ApiClient } from './client';
-import { DEFAULT_CONFIG, type Message, type MessagePage } from './types';
+import { DEFAULT_CONFIG, type Message, type MessagePage, type QuotedMessage } from './types';
 
 /**
- * 서버가 생기기 전까지 쓰는 고정 데이터.
+ * 서버가 생기기 전까지 쓰는 mock. **메모리에 글을 들고 있어서** 쓰면 목록에 붙는다.
+ * 앱을 다시 켜면 처음 상태로 돌아간다.
  *
  * 시간 구분선 규칙이 검증되도록 만들었다 — 3블록, 그중 하나는 3개월 이상 벌어진다.
  * 오래된 날짜는 계절 맥락(벚꽃·눈·단풍)이 맞도록 고정했고,
@@ -25,7 +26,7 @@ const SNOW = {
   createdAt: '2025-12-03T09:11:00+09:00',
 };
 
-const MESSAGES: Message[] = [
+const SEED: Message[] = [
   // ── 2025년 4월 · 벚꽃 ──
   { id: 1201, content: '여기 벚꽃 미쳤다', marker: 0, isMine: false, createdAt: '2025-04-12T14:23:00+09:00', replyTo: null },
   { id: 1202, content: 'ㄹㅇ 지금이 절정인 듯', marker: 7, isMine: false, createdAt: '2025-04-12T14:41:00+09:00', replyTo: null },
@@ -40,8 +41,33 @@ const MESSAGES: Message[] = [
   { id: 1292, content: '1년 전 사람들 아직 여기 오나', marker: 2, isMine: true, createdAt: yesterdayAt(21, 12), replyTo: null },
 ];
 
+/** 서버의 message 테이블 역할 */
+const store = {
+  messages: MOCK_EMPTY ? [] : [...SEED],
+  nextId: 2000,
+};
+
 function delay<T>(value: T, ms = 320): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
+}
+
+function quote(m: Message): QuotedMessage {
+  return { id: m.id, content: m.content, createdAt: m.createdAt };
+}
+
+/**
+ * 표식 배정 흉내. 서버는 같은 구역 최근 markerWindowHour 안에 쓰인 표식을 피한다 (D4).
+ * mock 은 구역 구분 없이 시간 조건만 본다.
+ */
+function pickMarker(now: number): number {
+  const windowMs = DEFAULT_CONFIG.markerWindowHour * 60 * 60 * 1000;
+  const used = new Set(
+    store.messages.filter((m) => now - new Date(m.createdAt).getTime() < windowMs).map((m) => m.marker),
+  );
+  for (let marker = 0; marker < 24; marker += 1) {
+    if (!used.has(marker)) return marker;
+  }
+  return Math.floor(Math.random() * 24);
 }
 
 export const mockClient: ApiClient = {
@@ -50,14 +76,24 @@ export const mockClient: ApiClient = {
   },
 
   async getMessages(): Promise<MessagePage> {
-    if (MOCK_EMPTY) return delay({ messages: [], nextCursor: null });
     // 서버는 최신순으로 내려준다 (createdAt DESC)
-    const sorted = [...MESSAGES].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const sorted = [...store.messages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return delay({ messages: sorted, nextCursor: null });
   },
 
-  async postMessage() {
-    return delay(undefined);
+  async postMessage({ content, replyToId }) {
+    const now = Date.now();
+    const target = replyToId != null ? store.messages.find((m) => m.id === replyToId) : undefined;
+    const created: Message = {
+      id: store.nextId++,
+      content,
+      marker: pickMarker(now),
+      isMine: true,
+      createdAt: new Date(now).toISOString(),
+      replyTo: target ? quote(target) : null,
+    };
+    store.messages.push(created);
+    return delay(created);
   },
 
   async sendPresence() {
