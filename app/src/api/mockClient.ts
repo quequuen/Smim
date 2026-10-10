@@ -1,5 +1,5 @@
 import type { ApiClient } from './client';
-import { ApiError } from './errors';
+import { ApiError, networkError } from './errors';
 import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type QuotedMessage, type Reply } from './types';
 
 /**
@@ -97,6 +97,52 @@ function withQuote(m: Message): Message {
   return original && isVisible(original) ? m : { ...m, replyTo: { ...m.replyTo, content: null } };
 }
 
+/**
+ * 오류 상태를 서버 없이 재현한다. 개발 빌드의 설정 화면에서 바꾼다.
+ *
+ *   offline      모든 요청이 서버에 닿지 못한다
+ *   serverError  조회·작성이 500
+ *   bannedArea   작성이 403 BANNED_AREA
+ *   rateLimited  작성이 429 RATE_LIMITED
+ */
+export type MockScenario = 'normal' | 'offline' | 'serverError' | 'bannedArea' | 'rateLimited';
+
+export const MOCK_SCENARIOS: { value: MockScenario; label: string }[] = [
+  { value: 'normal', label: '정상' },
+  { value: 'offline', label: '오프라인' },
+  { value: 'serverError', label: '서버 오류 (500)' },
+  { value: 'bannedArea', label: '금지 구역 (403)' },
+  { value: 'rateLimited', label: '도배 제한 (429)' },
+];
+
+let scenario: MockScenario = 'normal';
+
+export function getMockScenario(): MockScenario {
+  return scenario;
+}
+
+export function setMockScenario(next: MockScenario): void {
+  scenario = next;
+}
+
+/** 시나리오에 따라 응답 대신 오류를 낸다. 실패도 실제처럼 조금 기다렸다 온다 */
+async function fail(kind: 'read' | 'write'): Promise<void> {
+  const err =
+    scenario === 'offline'
+      ? networkError()
+      : scenario === 'serverError'
+        ? new ApiError(500, null, '서버 오류')
+        : kind === 'write' && scenario === 'bannedArea'
+          ? new ApiError(403, 'BANNED_AREA', '이 구역에는 글을 남길 수 없습니다.')
+          : kind === 'write' && scenario === 'rateLimited'
+            ? new ApiError(429, 'RATE_LIMITED', '너무 자주 남기고 있습니다.')
+            : null;
+  if (err) {
+    await delay(undefined, scenario === 'offline' ? 900 : 320);
+    throw err;
+  }
+}
+
 function delay<T>(value: T, ms = 320): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
@@ -129,6 +175,7 @@ export const mockClient: ApiClient = {
   },
 
   async getMessages(): Promise<MessagePage> {
+    await fail('read');
     // 서버는 최신순으로 내려준다 (createdAt DESC)
     const sorted = store.rows
       .filter(isVisible)
@@ -138,6 +185,7 @@ export const mockClient: ApiClient = {
   },
 
   async postMessage({ content, replyToId }) {
+    await fail('write');
     const now = Date.now();
     const target = replyToId != null ? findRow(replyToId).message : undefined;
     const created: Message = {
@@ -153,6 +201,7 @@ export const mockClient: ApiClient = {
   },
 
   async deleteMessage(id) {
+    await fail('write');
     const row = findRow(id);
     if (row.author !== ME) throw new ApiError(403, 'NOT_OWNER', '내가 쓴 글만 지울 수 있습니다.');
     row.status = 'deleted';
@@ -160,6 +209,7 @@ export const mockClient: ApiClient = {
   },
 
   async reportMessage(id) {
+    await fail('write');
     findRow(id);
     if (store.reported.has(id)) throw new ApiError(409, 'ALREADY_REPORTED', '이미 신고한 글입니다.');
     store.reported.add(id);
@@ -167,6 +217,7 @@ export const mockClient: ApiClient = {
   },
 
   async blockAuthor(messageId) {
+    await fail('write');
     const row = findRow(messageId);
     store.blocks.push({
       id: store.nextId++,
@@ -178,16 +229,19 @@ export const mockClient: ApiClient = {
   },
 
   async getBlocks() {
+    await fail('read');
     // author 는 서버 내부 값이므로 응답에서 뺀다
     return delay(store.blocks.map(({ author: _author, ...b }) => b).reverse());
   },
 
   async unblock(blockId) {
+    await fail('write');
     store.blocks = store.blocks.filter((b) => b.id !== blockId);
     return delay(undefined);
   },
 
   async getReplies() {
+    await fail('read');
     const mine = new Map(
       store.rows.filter((r) => r.author === ME && r.status === 'visible').map((r) => [r.message.id, r.message]),
     );
