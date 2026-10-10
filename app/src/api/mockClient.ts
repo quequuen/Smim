@@ -1,6 +1,6 @@
 import type { ApiClient } from './client';
 import { ApiError } from './errors';
-import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type QuotedMessage } from './types';
+import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type QuotedMessage, type Reply } from './types';
 
 /**
  * 서버가 생기기 전까지 쓰는 mock. **메모리에 글을 들고 있어서** 쓰면 목록에 붙는다.
@@ -13,6 +13,10 @@ import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type Quoted
 
 /** 빈 화면을 보려면 이 값을 true 로 바꾼다 */
 export const MOCK_EMPTY = false;
+
+function hoursAgo(h: number): string {
+  return new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+}
 
 function yesterdayAt(hour: number, minute: number): string {
   const d = new Date();
@@ -40,6 +44,16 @@ const SEED: Message[] = [
   { id: 1290, content: '저도 그거 보고 왔는데 지금은 단풍 들었어요', marker: 0, isMine: false, createdAt: yesterdayAt(11, 5), replyTo: SNOW },
   { id: 1291, content: '여기 지금 사람 많아요?', marker: 14, isMine: false, createdAt: yesterdayAt(17, 30), replyTo: null },
   { id: 1292, content: '1년 전 사람들 아직 여기 오나', marker: 2, isMine: true, createdAt: yesterdayAt(21, 12), replyTo: null },
+
+  // ── 오늘 · 내 글에 달린 답글 (답글 목록·배지 확인용) ──
+  {
+    id: 1293,
+    content: '저 왔어요 ㅋㅋ 1년 만에',
+    marker: 12,
+    isMine: false,
+    createdAt: hoursAgo(2),
+    replyTo: { id: 1292, content: '1년 전 사람들 아직 여기 오나', createdAt: yesterdayAt(21, 12) },
+  },
 ];
 
 /**
@@ -48,7 +62,7 @@ const SEED: Message[] = [
  */
 const ME = 'me';
 const SEED_AUTHORS: Record<number, string> = {
-  1201: 'a', 1202: 'b', 1203: 'a', 1280: 'c', 1290: 'd', 1291: 'e', 1292: ME,
+  1201: 'a', 1202: 'b', 1203: 'a', 1280: 'c', 1290: 'd', 1291: 'e', 1292: ME, 1293: 'f',
 };
 
 type Row = { message: Message; author: string; status: 'visible' | 'deleted' };
@@ -171,6 +185,23 @@ export const mockClient: ApiClient = {
   async unblock(blockId) {
     store.blocks = store.blocks.filter((b) => b.id !== blockId);
     return delay(undefined);
+  },
+
+  async getReplies() {
+    const mine = new Map(
+      store.rows.filter((r) => r.author === ME && r.status === 'visible').map((r) => [r.message.id, r.message]),
+    );
+    const replies: Reply[] = store.rows
+      .filter((r) => isVisible(r) && r.author !== ME && r.message.replyTo && mine.has(r.message.replyTo.id))
+      .map(({ message: m }) => ({
+        id: m.id,
+        content: m.content,
+        marker: m.marker,
+        createdAt: m.createdAt,
+        myMessage: { id: m.replyTo!.id, content: mine.get(m.replyTo!.id)!.content },
+      }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return delay(replies, 200);
   },
 
   async sendPresence() {

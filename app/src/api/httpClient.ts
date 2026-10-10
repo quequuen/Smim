@@ -1,7 +1,7 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
 import { ApiError } from './errors';
-import type { Block, Message, MessagePage, RuntimeConfig } from './types';
+import type { Block, Message, MessagePage, Reply, RuntimeConfig } from './types';
 
 /**
  * 실제 서버 호출. 근거: docs/api.md
@@ -81,6 +81,11 @@ export function createHttpClient(baseUrl: string): ApiClient {
 
     unblock(blockId) {
       return request<void>('DELETE', `/blocks/${blockId}`);
+    },
+
+    async getReplies() {
+      const res = await request<{ replies: Reply[] }>('GET', '/replies');
+      return res.replies;
     },
 
     sendPresence({ at, sessionId }) {
