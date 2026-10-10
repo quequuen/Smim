@@ -42,6 +42,15 @@ export const DEFAULT_CONFIG: RuntimeConfig = {
   markerWindowHour: 6,
 };
 
+/** 내 글에 달린 답글 (D6) */
+export type Reply = {
+  id: number;
+  content: string;
+  marker: number;
+  createdAt: string;
+  myMessage: { id: number; content: string };
+};
+
 export type ReportReason = 'abuse' | 'spam' | 'privacy' | 'other';
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [

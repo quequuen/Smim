@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -21,6 +22,7 @@ import {
   DEFAULT_CONFIG,
   isServerConnected,
   type Message,
+  type Reply,
   type ReportReason,
   type RuntimeConfig,
 } from '../api';
@@ -30,11 +32,14 @@ import { MenuIcon, PlaceMarkIcon, ReplyIcon } from '../components/Icons';
 import { MessageSheet } from '../components/MessageSheet';
 import { TimeSeparator } from '../components/TimeSeparator';
 import { Toast, useToast } from '../components/Toast';
-import { dayKey, isWideGap } from '../lib/time';
+import { getItem, KEYS, setItem } from '../lib/storage';
+import { dayKey, isAfter, isWideGap } from '../lib/time';
 import { useLocation } from '../lib/useLocation';
 import { usePresence, type PresenceState } from '../lib/usePresence';
 import { font, spacing } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { RepliesScreen } from './RepliesScreen';
+import { SettingsScreen } from './SettingsScreen';
 
 type Section = { key: string; iso: string; wideGap: boolean; data: Message[] };
 
@@ -100,6 +105,37 @@ export function MainScreen() {
     load();
   }, [load]);
 
+  // ── 내 글에 달린 답글 (D6) ──────────────
+  // 읽음은 서버가 아니라 기기에 남긴 "마지막으로 연 시각"으로 판단한다
+  const [replies, setReplies] = useState<Reply[] | null>(null);
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  const [seenBefore, setSeenBefore] = useState<string | null>(null);
+  const [repliesOpen, setRepliesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const loadReplies = useCallback(() => {
+    api.getReplies().then(setReplies, () => {});
+  }, []);
+
+  useEffect(() => {
+    getItem(KEYS.repliesSeenAt).then(setSeenAt);
+    loadReplies();
+    // 앱을 다시 열 때 새 답글이 왔는지 본다 — "앱을 열면 내 글에 답글 N개" (D6)
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && loadReplies());
+    return () => sub.remove();
+  }, [loadReplies]);
+
+  const unreadCount = replies?.filter((r) => isAfter(r.createdAt, seenAt)).length ?? 0;
+
+  const openReplies = () => {
+    setSeenBefore(seenAt); // 이번에 보여줄 새 답글 표시는 열기 전 시각 기준
+    const now = new Date().toISOString();
+    setSeenAt(now);
+    setItem(KEYS.repliesSeenAt, now);
+    setRepliesOpen(true);
+    loadReplies();
+  };
+
   // ── 글쓰기 ─────────────────────────────
   const inputRef = useRef<TextInput>(null);
   const [draft, setDraft] = useState('');
@@ -148,6 +184,7 @@ export function MainScreen() {
             await api.deleteMessage(m.id);
             dropReplyIfGone([m.id]);
             await load(); // 이 글을 인용한 답글도 함께 바뀌므로 다시 받는다
+            loadReplies();
             showToast('지웠어요');
           } catch (e) {
             showToast(e instanceof ApiError ? e.message : '지우지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -163,6 +200,7 @@ export function MainScreen() {
       await api.reportMessage(m.id, reason);
       dropReplyIfGone([m.id]);
       await load();
+      loadReplies();
       showToast('신고했어요. 이 글은 이제 보이지 않아요.');
     } catch (e) {
       showToast(e instanceof ApiError ? e.message : '신고하지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -188,6 +226,7 @@ export function MainScreen() {
               const after = new Set(page.messages.map((x) => x.id));
               dropReplyIfGone([...before].filter((id) => !after.has(id)));
               setMessages(page.messages);
+              loadReplies();
               showToast('이 작성자의 글을 더 이상 보지 않아요');
             } catch (e) {
               showToast(e instanceof ApiError ? e.message : '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
@@ -220,13 +259,19 @@ export function MainScreen() {
         <View style={styles.headerActions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="내 글에 달린 답글"
+            accessibilityLabel={unreadCount > 0 ? `내 글에 달린 답글, 새 답글 ${unreadCount}개` : '내 글에 달린 답글'}
+            onPress={openReplies}
             style={styles.iconButton}
           >
             <ReplyIcon color={palette.ink2} />
-            <View style={[styles.badge, { backgroundColor: palette.markers[1] }]} />
+            {unreadCount > 0 && <View style={[styles.badge, { backgroundColor: palette.markers[1] }]} />}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="설정" style={styles.iconButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="설정"
+            onPress={() => setSettingsOpen(true)}
+            style={styles.iconButton}
+          >
             <MenuIcon color={palette.ink2} />
           </Pressable>
         </View>
@@ -304,6 +349,21 @@ export function MainScreen() {
         emptyPlace={isEmpty}
         // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
         bottomPadding={keyboardShown ? 12 : Math.max(insets.bottom, 20)}
+      />
+
+      <RepliesScreen
+        visible={repliesOpen}
+        onClose={() => setRepliesOpen(false)}
+        replies={replies}
+        seenBefore={seenBefore}
+      />
+      <SettingsScreen
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onBlocksChanged={() => {
+          load();
+          loadReplies();
+        }}
       />
 
       <MessageSheet

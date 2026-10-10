@@ -1,4 +1,4 @@
-import type { Block, Message, MessagePage, ReportReason, RuntimeConfig } from './types';
+import type { Block, Message, MessagePage, Reply, ReportReason, RuntimeConfig } from './types';
 
 export type Coords = { lat: number; lon: number };
 
@@ -19,6 +19,8 @@ export interface ApiClient {
   blockAuthor(messageId: number): Promise<void>;
   getBlocks(): Promise<Block[]>;
   unblock(blockId: number): Promise<void>;
+  /** 내 글에 달린 답글. 읽음 여부는 앱이 로컬 시각으로 판단한다 */
+  getReplies(): Promise<Reply[]>;
   /** 하트비트. 실시간 전달 대상에 포함되기 위한 위치 등록 — 화면 갱신과 무관 */
   sendPresence(args: { at: Coords; sessionId: string }): Promise<void>;
 }
