@@ -1,6 +1,6 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
-import { ApiError } from './errors';
+import { ApiError, networkError } from './errors';
 import type { Block, Message, MessagePage, Reply, RuntimeConfig } from './types';
 
 /**
@@ -19,15 +19,21 @@ export function createHttpClient(baseUrl: string): ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(root + path, {
-        method,
-        headers: {
-          'X-Device-Key': await getDeviceKey(),
-          ...(body !== undefined && { 'Content-Type': 'application/json' }),
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      let res: Response;
+      try {
+        res = await fetch(root + path, {
+          method,
+          headers: {
+            'X-Device-Key': await getDeviceKey(),
+            ...(body !== undefined && { 'Content-Type': 'application/json' }),
+          },
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+      } catch {
+        // 오프라인·시간 초과는 fetch 가 TypeError·AbortError 로 던진다. 화면이 한 가지로 다루도록 바꾼다
+        throw networkError();
+      }
 
       if (!res.ok) {
         // 오류 형태: { code, message } — docs/api.md 4장

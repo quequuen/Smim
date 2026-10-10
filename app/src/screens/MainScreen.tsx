@@ -32,6 +32,7 @@ import { MenuIcon, PlaceMarkIcon, ReplyIcon } from '../components/Icons';
 import { MessageSheet } from '../components/MessageSheet';
 import { TimeSeparator } from '../components/TimeSeparator';
 import { Toast, useToast } from '../components/Toast';
+import { describeError } from '../lib/errorMessage';
 import { getItem, KEYS, setItem } from '../lib/storage';
 import { dayKey, isAfter, isWideGap } from '../lib/time';
 import { useLocation } from '../lib/useLocation';
@@ -91,15 +92,26 @@ export function MainScreen() {
   const coords = location.status === 'ready' ? location.coords : null;
   const presence = usePresence(coords, config.heartbeatSec);
 
+  // 불러오기에 실패해도 이미 보이던 글은 지우지 않는다 — 빈 화면("아무 말도 없어요")과 섞이면 안 된다
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [retrying, setRetrying] = useState(false);
+
   const load = useCallback(async () => {
     if (!coords) return;
     try {
       const page = await api.getMessages({ at: coords, radiusM: config.radiusM });
       setMessages(page.messages);
-    } catch {
-      setMessages((prev) => prev ?? []);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e);
     }
   }, [coords, config.radiusM]);
+
+  const retry = async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  };
 
   useEffect(() => {
     load();
@@ -113,8 +125,10 @@ export function MainScreen() {
   const [repliesOpen, setRepliesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const [repliesFailed, setRepliesFailed] = useState(false);
   const loadReplies = useCallback(() => {
-    api.getReplies().then(setReplies, () => {});
+    setRepliesFailed(false);
+    api.getReplies().then(setReplies, () => setRepliesFailed(true));
   }, []);
 
   useEffect(() => {
@@ -124,6 +138,14 @@ export function MainScreen() {
     const sub = AppState.addEventListener('change', (s) => s === 'active' && loadReplies());
     return () => sub.remove();
   }, [loadReplies]);
+
+  // 앱으로 돌아왔을 때 마지막 불러오기가 실패한 상태였다면 다시 시도한다
+  const loadErrorRef = useRef(loadError);
+  loadErrorRef.current = loadError;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && loadErrorRef.current && load());
+    return () => sub.remove();
+  }, [load]);
 
   const unreadCount = replies?.filter((r) => isAfter(r.createdAt, seenAt)).length ?? 0;
 
@@ -142,18 +164,26 @@ export function MainScreen() {
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [sheetFor, setSheetFor] = useState<Message | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  const changeDraft = (text: string) => {
+    setDraft(text);
+    setSendError(null);
+  };
 
   const send = async () => {
     const content = draft.trim();
     if (!coords || !content || sending) return;
     setSending(true);
+    setSendError(null);
     try {
       const created = await api.postMessage({ at: coords, content, replyToId: replyTo?.id });
       setMessages((prev) => [...(prev ?? []), created]);
       setDraft('');
       setReplyTo(null);
-    } catch {
-      // 실패하면 쓴 글을 지우지 않고 남겨 둔다. 오류 안내는 오류 상태 작업에서 붙인다
+    } catch (e) {
+      // 쓴 글은 지우지 않고 남겨 둔다 — 다시 누르기만 하면 되도록
+      setSendError(describeError(e, '보내지'));
     } finally {
       setSending(false);
     }
@@ -187,7 +217,7 @@ export function MainScreen() {
             loadReplies();
             showToast('지웠어요');
           } catch (e) {
-            showToast(e instanceof ApiError ? e.message : '지우지 못했어요. 잠시 후 다시 시도해 주세요.');
+            showToast(describeError(e, '지우지'));
           }
         },
       },
@@ -203,7 +233,7 @@ export function MainScreen() {
       loadReplies();
       showToast('신고했어요. 이 글은 이제 보이지 않아요.');
     } catch (e) {
-      showToast(e instanceof ApiError ? e.message : '신고하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      showToast(describeError(e, '신고하지'));
     }
   };
 
@@ -229,7 +259,7 @@ export function MainScreen() {
               loadReplies();
               showToast('이 작성자의 글을 더 이상 보지 않아요');
             } catch (e) {
-              showToast(e instanceof ApiError ? e.message : '차단하지 못했어요. 잠시 후 다시 시도해 주세요.');
+              showToast(describeError(e, '차단하지'));
             }
           },
         },
@@ -279,6 +309,20 @@ export function MainScreen() {
 
       {/* 토스트를 입력창 바로 위에 띄우기 위해 본문을 한 겹 감싼다 */}
       <View style={styles.body}>
+        {messages !== null && !!loadError && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="다시 불러오기"
+            onPress={retry}
+            disabled={retrying}
+            style={[styles.banner, { backgroundColor: palette.surface, borderBottomColor: palette.ruleSoft }]}
+          >
+            <Text style={[styles.bannerText, { color: palette.ink2 }]}>
+              {isNetworkError(loadError) ? '연결이 끊겼어요 · 보이는 글은 마지막으로 받은 것이에요' : '새 기록을 불러오지 못했어요'}
+            </Text>
+            <Text style={[styles.bannerAction, { color: palette.ink }]}>{retrying ? '…' : '다시 시도'}</Text>
+          </Pressable>
+        )}
         {location.status === 'denied' || location.status === 'error' ? (
           <View style={styles.center}>
             <PlaceMarkIcon color={palette.rule} dot={palette.muted} />
@@ -300,9 +344,38 @@ export function MainScreen() {
               </Pressable>
             )}
           </View>
+        ) : messages === null && loadError ? (
+          <View style={styles.center}>
+            <PlaceMarkIcon color={palette.rule} dot={palette.muted} />
+            <View style={styles.emptyText}>
+              <Text style={[styles.emptyTitle, { color: palette.ink }]}>
+                {isNetworkError(loadError) ? '연결할 수 없어요' : '기록을 불러오지 못했어요'}
+              </Text>
+              <Text style={[styles.emptyBody, { color: palette.muted }]}>
+                {isNetworkError(loadError)
+                  ? '인터넷 연결을 확인한 뒤\n다시 시도해 주세요.'
+                  : '잠시 후 다시 시도해 주세요.'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={retry}
+              disabled={retrying}
+              style={[styles.settingsButton, { borderColor: palette.rule }]}
+            >
+              {retrying ? (
+                <ActivityIndicator size="small" color={palette.muted} />
+              ) : (
+                <Text style={[styles.settingsLabel, { color: palette.ink }]}>다시 시도</Text>
+              )}
+            </Pressable>
+          </View>
         ) : messages === null ? (
           <View style={styles.center}>
             <ActivityIndicator color={palette.muted} />
+            <Text style={[styles.pendingText, { color: palette.muted }]}>
+              {coords ? '이 자리의 기록을 불러오는 중' : '지금 위치를 확인하는 중'}
+            </Text>
           </View>
         ) : isEmpty ? (
           <View style={styles.center}>
@@ -340,12 +413,16 @@ export function MainScreen() {
       <Composer
         ref={inputRef}
         value={draft}
-        onChangeText={setDraft}
+        onChangeText={changeDraft}
+        error={sendError}
         onSend={send}
         sending={sending}
         canSend={coords !== null}
         replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
+        onCancelReply={() => {
+          setReplyTo(null);
+          setSendError(null);
+        }}
         emptyPlace={isEmpty}
         // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
         bottomPadding={keyboardShown ? 12 : Math.max(insets.bottom, 20)}
@@ -355,6 +432,8 @@ export function MainScreen() {
         visible={repliesOpen}
         onClose={() => setRepliesOpen(false)}
         replies={replies}
+        failed={repliesFailed}
+        onRetry={loadReplies}
         seenBefore={seenBefore}
       />
       <SettingsScreen
@@ -393,6 +472,10 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
+function isNetworkError(e: unknown): boolean {
+  return e instanceof ApiError && e.isNetwork;
+}
+
 /** 개발 중에만 보이는 서버 통신 상태 */
 function describePresence(p: PresenceState): string {
   switch (p.status) {
@@ -408,6 +491,18 @@ function describePresence(p: PresenceState): string {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   body: { flex: 1 },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: spacing.screenX,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  bannerText: { flex: 1, fontFamily: font.sans, fontSize: 12.5, lineHeight: 18 },
+  bannerAction: { fontFamily: font.sansMedium, fontSize: 12.5, textDecorationLine: 'underline' },
+  pendingText: { fontFamily: font.sans, fontSize: 13 },
   header: {
     height: spacing.headerHeight,
     paddingLeft: spacing.screenX,

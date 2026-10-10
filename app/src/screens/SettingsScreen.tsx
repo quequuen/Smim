@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type Block } from '../api';
+import { getMockScenario, MOCK_SCENARIOS, setMockScenario, type MockScenario } from '../api/mockClient';
 import { ChevronIcon } from '../components/Icons';
 import { ScreenModal } from '../components/ScreenModal';
 import { TermsBody } from '../components/TermsBody';
@@ -23,17 +24,23 @@ export function SettingsScreen({
 }: {
   visible: boolean;
   onClose: () => void;
-  /** 차단을 해제하면 메인 목록을 다시 받아야 한다 */
+  /** 차단 해제·mock 시나리오 변경 뒤 메인 목록을 다시 받아야 한다 */
   onBlocksChanged: () => void;
 }) {
   const [page, setPage] = useState<Page>('main');
   const [blocks, setBlocks] = useState<Block[] | null>(null);
+  const [blocksFailed, setBlocksFailed] = useState(false);
+
+  const loadBlocks = () => {
+    setBlocks(null);
+    setBlocksFailed(false);
+    api.getBlocks().then(setBlocks, () => setBlocksFailed(true));
+  };
 
   useEffect(() => {
     if (!visible) return;
     setPage('main');
-    setBlocks(null);
-    api.getBlocks().then(setBlocks, () => setBlocks([]));
+    loadBlocks();
   }, [visible]);
 
   const unblock = (b: Block) =>
@@ -60,8 +67,19 @@ export function SettingsScreen({
       onClose={onClose}
       onBack={page === 'main' ? undefined : () => setPage('main')}
     >
-      {page === 'main' && <MainPage blockCount={blocks?.length ?? null} onOpen={setPage} />}
-      {page === 'blocks' && <BlocksPage blocks={blocks} onUnblock={unblock} />}
+      {page === 'main' && (
+        <MainPage
+          blockCount={blocks?.length ?? null}
+          onOpen={setPage}
+          onScenarioChanged={() => {
+            loadBlocks();
+            onBlocksChanged();
+          }}
+        />
+      )}
+      {page === 'blocks' && (
+        <BlocksPage blocks={blocks} failed={blocksFailed} onRetry={loadBlocks} onUnblock={unblock} />
+      )}
       {page === 'terms' && (
         <ScrollView contentContainerStyle={styles.termsScroll}>
           <TermsBody />
@@ -71,7 +89,15 @@ export function SettingsScreen({
   );
 }
 
-function MainPage({ blockCount, onOpen }: { blockCount: number | null; onOpen: (p: Page) => void }) {
+function MainPage({
+  blockCount,
+  onOpen,
+  onScenarioChanged,
+}: {
+  blockCount: number | null;
+  onOpen: (p: Page) => void;
+  onScenarioChanged: () => void;
+}) {
   const { palette } = useTheme();
   return (
     <ScrollView>
@@ -87,7 +113,46 @@ function MainPage({ blockCount, onOpen }: { blockCount: number | null; onOpen: (
           수 없어요.
         </Text>
       </View>
+
+      {__DEV__ && <MockScenarioPicker onChanged={onScenarioChanged} />}
     </ScrollView>
+  );
+}
+
+/** 개발 빌드에서만. 오류 상태를 서버 없이 눌러보기 위한 것 */
+function MockScenarioPicker({ onChanged }: { onChanged: () => void }) {
+  const { palette } = useTheme();
+  const [current, setCurrent] = useState<MockScenario>(getMockScenario());
+
+  const pick = (s: MockScenario) => {
+    setMockScenario(s);
+    setCurrent(s);
+    onChanged();
+  };
+
+  return (
+    <View style={[styles.dev, { borderTopColor: palette.ruleSoft }]}>
+      <Text style={[styles.devTitle, { color: palette.muted }]}>개발용 · mock 시나리오</Text>
+      <View style={styles.devOptions}>
+        {MOCK_SCENARIOS.map((s) => {
+          const on = s.value === current;
+          return (
+            <Pressable
+              key={s.value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              onPress={() => pick(s.value)}
+              style={[
+                styles.devChip,
+                { borderColor: on ? palette.ink : palette.rule, backgroundColor: on ? palette.ink : 'transparent' },
+              ]}
+            >
+              <Text style={[styles.devChipLabel, { color: on ? palette.paper : palette.ink2 }]}>{s.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -113,9 +178,29 @@ function Row({ label, value, onPress }: { label: string; value?: string; onPress
   );
 }
 
-function BlocksPage({ blocks, onUnblock }: { blocks: Block[] | null; onUnblock: (b: Block) => void }) {
+function BlocksPage({
+  blocks,
+  failed,
+  onRetry,
+  onUnblock,
+}: {
+  blocks: Block[] | null;
+  failed: boolean;
+  onRetry: () => void;
+  onUnblock: (b: Block) => void;
+}) {
   const { palette } = useTheme();
 
+  if (failed) {
+    return (
+      <View style={styles.center}>
+        <Text style={[styles.emptyBody, { color: palette.muted }]}>차단 목록을 불러오지 못했어요</Text>
+        <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={8}>
+          <Text style={[styles.retry, { color: palette.ink }]}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (blocks === null) {
     return (
       <View style={styles.center}>
@@ -162,7 +247,13 @@ function BlocksPage({ blocks, onUnblock }: { blocks: Block[] | null; onUnblock: 
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  retry: { fontFamily: font.sansMedium, fontSize: 14, textDecorationLine: 'underline' },
+  dev: { paddingHorizontal: spacing.screenX, paddingVertical: 20, gap: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  devTitle: { fontFamily: font.mono, fontSize: 11, letterSpacing: 0.8 },
+  devOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  devChip: { paddingHorizontal: 12, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center' },
+  devChipLabel: { fontFamily: font.sans, fontSize: 12.5 },
   emptyBody: { fontFamily: font.sans, fontSize: 14 },
   row: {
     minHeight: 56,

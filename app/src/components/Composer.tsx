@@ -19,10 +19,12 @@ type Props = {
   onCancelReply: () => void;
   emptyPlace: boolean;
   bottomPadding: number;
+  /** 보내기 실패 안내. 글을 고치거나 답글을 취소하면 사라진다 */
+  error?: string | null;
 };
 
 export const Composer = forwardRef<TextInput, Props>(function Composer(
-  { value, onChangeText, onSend, sending, canSend, replyTo, onCancelReply, emptyPlace, bottomPadding },
+  { value, onChangeText, onSend, sending, canSend, replyTo, onCancelReply, emptyPlace, bottomPadding, error },
   inputRef,
 ) {
   const { palette } = useTheme();
@@ -47,6 +49,12 @@ export const Composer = forwardRef<TextInput, Props>(function Composer(
             <CloseIcon color={palette.muted} />
           </Pressable>
         </View>
+      )}
+
+      {!!error && (
+        <Text accessibilityLiveRegion="polite" style={[styles.error, { color: palette.markers[1] }]}>
+          {error}
+        </Text>
       )}
 
       <View style={styles.row}>
@@ -140,6 +148,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  error: {
+    paddingLeft: 4,
+    fontFamily: font.sans,
+    fontSize: 12.5,
+    lineHeight: 18,
   },
   counter: {
     alignSelf: 'flex-end',

@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Reply } from '../api';
 import { Marker } from '../components/Marker';
 import { ScreenModal } from '../components/ScreenModal';
@@ -16,11 +16,16 @@ export function RepliesScreen({
   visible,
   onClose,
   replies,
+  failed,
+  onRetry,
   seenBefore,
 }: {
   visible: boolean;
   onClose: () => void;
   replies: Reply[] | null;
+  /** 불러오기 실패. 이전에 받은 목록이 있으면 그것을 보여주고 실패는 무시한다 */
+  failed: boolean;
+  onRetry: () => void;
   /** 이번에 열기 직전의 마지막 확인 시각. 이후에 온 답글에 점을 찍는다 */
   seenBefore: string | null;
 }) {
@@ -28,7 +33,14 @@ export function RepliesScreen({
 
   return (
     <ScreenModal visible={visible} title="내 글에 달린 답글" onClose={onClose}>
-      {replies === null ? (
+      {replies === null && failed ? (
+        <View style={styles.center}>
+          <Text style={[styles.emptyBody, { color: palette.muted }]}>답글을 불러오지 못했어요</Text>
+          <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={8}>
+            <Text style={[styles.retry, { color: palette.ink }]}>다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : replies === null ? (
         <View style={styles.center}>
           <ActivityIndicator color={palette.muted} />
         </View>
@@ -88,6 +100,7 @@ function ReplyItem({ reply, unread }: { reply: Reply; unread: boolean }) {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 44 },
   emptyTitle: { fontFamily: font.sansSemiBold, fontSize: 17, textAlign: 'center' },
+  retry: { fontFamily: font.sansMedium, fontSize: 14, textDecorationLine: 'underline' },
   emptyBody: { fontFamily: font.sans, fontSize: 14, lineHeight: 23, textAlign: 'center' },
   list: { paddingVertical: 8 },
   sep: { height: StyleSheet.hairlineWidth, marginHorizontal: spacing.screenX },
