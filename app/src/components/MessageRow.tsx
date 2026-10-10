@@ -8,6 +8,8 @@ import { Marker } from './Marker';
  * 내 글에는 표식을 붙이지 않고 오른쪽 정렬로만 구분한다.
  * 남은 구분되지 않고 나만 구분된다 (D4).
  */
+const DELETED_QUOTE = '지워진 글이에요';
+
 export function MessageRow({ message, onLongPress }: { message: Message; onLongPress?: (m: Message) => void }) {
   const { palette } = useTheme();
 
@@ -31,7 +33,7 @@ function Mine({ message }: { message: Message }) {
           numberOfLines={2}
           style={[styles.quote, styles.mineQuote, { color: palette.muted, borderRightColor: palette.rule }]}
         >
-          {message.replyTo.content}
+          {message.replyTo.content ?? DELETED_QUOTE}
         </Text>
       )}
       <Text style={[styles.body, styles.mineBody, { color: palette.ink }]}>{message.content}</Text>
@@ -49,7 +51,7 @@ function Others({ message }: { message: Message }) {
       <View style={styles.bodyCol}>
         {message.replyTo && (
           <Text numberOfLines={2} style={[styles.quote, { color: palette.muted, borderLeftColor: palette.rule }]}>
-            {message.replyTo.content}
+            {message.replyTo.content ?? DELETED_QUOTE}
           </Text>
         )}
         <Text style={[styles.body, { color: palette.ink2 }]}>{message.content}</Text>

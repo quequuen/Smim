@@ -2,7 +2,8 @@
 
 export type QuotedMessage = {
   id: number;
-  content: string;
+  /** 원글이 삭제·숨김 처리되면 null — 지운 글이 인용으로 남아 읽히면 안 된다 */
+  content: string | null;
   createdAt: string;
 };
 
@@ -39,6 +40,25 @@ export const DEFAULT_CONFIG: RuntimeConfig = {
   moveThresholdM: 45,
   heartbeatSec: 45,
   markerWindowHour: 6,
+};
+
+export type ReportReason = 'abuse' | 'spam' | 'privacy' | 'other';
+
+export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: 'abuse', label: '욕설 · 비하 · 혐오' },
+  { value: 'spam', label: '도배 · 광고' },
+  { value: 'privacy', label: '실명 · 연락처 · 주소 노출' },
+  { value: 'other', label: '기타' },
+];
+
+/**
+ * 차단 목록의 한 줄. 작성자를 보여줄 수 없으므로(D4) 차단할 때 지목한 글을 함께 보여준다.
+ */
+export type Block = {
+  id: number;
+  /** 차단할 때 지목한 글. 그 글이 지워졌으면 null */
+  messageContent: string | null;
+  createdAt: string;
 };
 
 /** 본문 길이 제한 — 서버의 VARCHAR(500) 과 맞춘다 */

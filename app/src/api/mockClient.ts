@@ -1,5 +1,6 @@
 import type { ApiClient } from './client';
-import { DEFAULT_CONFIG, type Message, type MessagePage, type QuotedMessage } from './types';
+import { ApiError } from './errors';
+import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type QuotedMessage } from './types';
 
 /**
  * 서버가 생기기 전까지 쓰는 mock. **메모리에 글을 들고 있어서** 쓰면 목록에 붙는다.
@@ -41,11 +42,46 @@ const SEED: Message[] = [
   { id: 1292, content: '1년 전 사람들 아직 여기 오나', marker: 2, isMine: true, createdAt: yesterdayAt(21, 12), replyTo: null },
 ];
 
-/** 서버의 message 테이블 역할 */
+/**
+ * 시드 글의 작성자. 화면에는 절대 나가지 않는 서버 내부 값(author_key) 역할이다.
+ * 1201·1203 은 같은 사람 — 한 명을 차단하면 두 글이 함께 사라지는지 확인할 수 있다.
+ */
+const ME = 'me';
+const SEED_AUTHORS: Record<number, string> = {
+  1201: 'a', 1202: 'b', 1203: 'a', 1280: 'c', 1290: 'd', 1291: 'e', 1292: ME,
+};
+
+type Row = { message: Message; author: string; status: 'visible' | 'deleted' };
+
+/** 서버의 message · report · user_block 테이블 역할 */
 const store = {
-  messages: MOCK_EMPTY ? [] : [...SEED],
+  rows: (MOCK_EMPTY ? [] : SEED).map<Row>((m) => ({ message: m, author: SEED_AUTHORS[m.id], status: 'visible' })),
+  reported: new Set<number>(),
+  blocks: [] as (Block & { author: string })[],
   nextId: 2000,
 };
+
+function findRow(id: number): Row {
+  const row = store.rows.find((r) => r.message.id === id && r.status === 'visible');
+  if (!row) throw new ApiError(404, null, '글을 찾을 수 없습니다.');
+  return row;
+}
+
+/** 이 사용자에게 보이는가 — 지운 글, 신고한 글, 차단한 작성자의 글은 빠진다 */
+function isVisible(r: Row): boolean {
+  return (
+    r.status === 'visible' &&
+    !store.reported.has(r.message.id) &&
+    !store.blocks.some((b) => b.author === r.author)
+  );
+}
+
+/** 인용한 원글이 더는 보이지 않으면 내용을 비운다 */
+function withQuote(m: Message): Message {
+  if (!m.replyTo) return m;
+  const original = store.rows.find((r) => r.message.id === m.replyTo!.id);
+  return original && isVisible(original) ? m : { ...m, replyTo: { ...m.replyTo, content: null } };
+}
 
 function delay<T>(value: T, ms = 320): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -62,7 +98,10 @@ function quote(m: Message): QuotedMessage {
 function pickMarker(now: number): number {
   const windowMs = DEFAULT_CONFIG.markerWindowHour * 60 * 60 * 1000;
   const used = new Set(
-    store.messages.filter((m) => now - new Date(m.createdAt).getTime() < windowMs).map((m) => m.marker),
+    store.rows
+      .map((r) => r.message)
+      .filter((m) => now - new Date(m.createdAt).getTime() < windowMs)
+      .map((m) => m.marker),
   );
   for (let marker = 0; marker < 24; marker += 1) {
     if (!used.has(marker)) return marker;
@@ -77,13 +116,16 @@ export const mockClient: ApiClient = {
 
   async getMessages(): Promise<MessagePage> {
     // 서버는 최신순으로 내려준다 (createdAt DESC)
-    const sorted = [...store.messages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const sorted = store.rows
+      .filter(isVisible)
+      .map((r) => withQuote(r.message))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return delay({ messages: sorted, nextCursor: null });
   },
 
   async postMessage({ content, replyToId }) {
     const now = Date.now();
-    const target = replyToId != null ? store.messages.find((m) => m.id === replyToId) : undefined;
+    const target = replyToId != null ? findRow(replyToId).message : undefined;
     const created: Message = {
       id: store.nextId++,
       content,
@@ -92,8 +134,43 @@ export const mockClient: ApiClient = {
       createdAt: new Date(now).toISOString(),
       replyTo: target ? quote(target) : null,
     };
-    store.messages.push(created);
+    store.rows.push({ message: created, author: ME, status: 'visible' });
     return delay(created);
+  },
+
+  async deleteMessage(id) {
+    const row = findRow(id);
+    if (row.author !== ME) throw new ApiError(403, 'NOT_OWNER', '내가 쓴 글만 지울 수 있습니다.');
+    row.status = 'deleted';
+    return delay(undefined);
+  },
+
+  async reportMessage(id) {
+    findRow(id);
+    if (store.reported.has(id)) throw new ApiError(409, 'ALREADY_REPORTED', '이미 신고한 글입니다.');
+    store.reported.add(id);
+    return delay(undefined);
+  },
+
+  async blockAuthor(messageId) {
+    const row = findRow(messageId);
+    store.blocks.push({
+      id: store.nextId++,
+      author: row.author,
+      messageContent: row.message.content,
+      createdAt: new Date().toISOString(),
+    });
+    return delay(undefined);
+  },
+
+  async getBlocks() {
+    // author 는 서버 내부 값이므로 응답에서 뺀다
+    return delay(store.blocks.map(({ author: _author, ...b }) => b).reverse());
+  },
+
+  async unblock(blockId) {
+    store.blocks = store.blocks.filter((b) => b.id !== blockId);
+    return delay(undefined);
   },
 
   async sendPresence() {

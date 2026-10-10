@@ -1,6 +1,7 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
-import type { Message, MessagePage, RuntimeConfig } from './types';
+import { ApiError } from './errors';
+import type { Block, Message, MessagePage, RuntimeConfig } from './types';
 
 /**
  * 실제 서버 호출. 근거: docs/api.md
@@ -10,16 +11,6 @@ import type { Message, MessagePage, RuntimeConfig } from './types';
  */
 
 const TIMEOUT_MS = 8_000;
-
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | null,
-    message: string,
-  ) {
-    super(message);
-  }
-}
 
 export function createHttpClient(baseUrl: string): ApiClient {
   const root = baseUrl.replace(/\/+$/, '');
@@ -69,6 +60,27 @@ export function createHttpClient(baseUrl: string): ApiClient {
         replyToId,
       });
       return { ...created, content };
+    },
+
+    deleteMessage(id) {
+      return request<void>('DELETE', `/messages/${id}`);
+    },
+
+    reportMessage(id, reason) {
+      return request<void>('POST', `/messages/${id}/report`, { reason });
+    },
+
+    blockAuthor(messageId) {
+      return request<void>('POST', '/blocks', { messageId });
+    },
+
+    async getBlocks() {
+      const res = await request<{ blocks: Block[] }>('GET', '/blocks');
+      return res.blocks;
+    },
+
+    unblock(blockId) {
+      return request<void>('DELETE', `/blocks/${blockId}`);
     },
 
     sendPresence({ at, sessionId }) {
