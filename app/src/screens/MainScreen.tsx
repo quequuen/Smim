@@ -10,14 +10,15 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
+  type TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, DEFAULT_CONFIG, isServerConnected, type Message, type RuntimeConfig } from '../api';
-import { MOCK_EMPTY } from '../api/mockClient';
 import { MessageRow } from '../components/MessageRow';
-import { MenuIcon, PlaceMarkIcon, ReplyIcon, SendIcon } from '../components/Icons';
+import { Composer } from '../components/Composer';
+import { MenuIcon, PlaceMarkIcon, ReplyIcon } from '../components/Icons';
+import { MessageSheet } from '../components/MessageSheet';
 import { TimeSeparator } from '../components/TimeSeparator';
 import { dayKey, isWideGap } from '../lib/time';
 import { useLocation } from '../lib/useLocation';
@@ -90,6 +91,36 @@ export function MainScreen() {
       alive = false;
     };
   }, [coords, config.radiusM]);
+
+  // ── 글쓰기 ─────────────────────────────
+  const inputRef = useRef<TextInput>(null);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [sheetFor, setSheetFor] = useState<Message | null>(null);
+
+  const send = async () => {
+    const content = draft.trim();
+    if (!coords || !content || sending) return;
+    setSending(true);
+    try {
+      const created = await api.postMessage({ at: coords, content, replyToId: replyTo?.id });
+      setMessages((prev) => [...(prev ?? []), created]);
+      setDraft('');
+      setReplyTo(null);
+    } catch {
+      // 실패하면 쓴 글을 지우지 않고 남겨 둔다. 오류 안내는 오류 상태 작업에서 붙인다
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const startReply = (m: Message) => {
+    setSheetFor(null);
+    setReplyTo(m);
+    // 시트가 닫히는 애니메이션과 겹치면 Android 에서 키보드가 안 뜬다
+    setTimeout(() => inputRef.current?.focus(), 250);
+  };
 
   const sections = useMemo(() => (messages ? buildSections(messages) : []), [messages]);
   const isEmpty = messages !== null && messages.length === 0;
@@ -168,7 +199,7 @@ export function MainScreen() {
           ref={listRef}
           sections={sections}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <MessageRow message={item} />}
+          renderItem={({ item }) => <MessageRow message={item} onLongPress={setSheetFor} />}
           renderSectionHeader={({ section }) => (
             <TimeSeparator iso={section.iso} wideGap={section.wideGap} />
           )}
@@ -181,30 +212,21 @@ export function MainScreen() {
         />
       )}
 
-      <View
-        style={[
-          styles.composer,
-          // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
-          { borderTopColor: palette.ruleSoft, paddingBottom: keyboardShown ? 12 : Math.max(insets.bottom, 20) },
-        ]}
-      >
-        <TextInput
-          accessibilityLabel="이 자리에 남길 말"
-          placeholder={isEmpty ? '이 자리에 처음으로 남기기' : '이 자리에 남기기'}
-          placeholderTextColor={palette.muted}
-          style={[
-            styles.input,
-            {
-              color: palette.ink,
-              backgroundColor: palette.surface,
-              borderColor: isEmpty ? palette.muted : palette.rule,
-            },
-          ]}
-        />
-        <Pressable accessibilityRole="button" accessibilityLabel="남기기" style={[styles.send, { backgroundColor: palette.ink }]}>
-          <SendIcon color={palette.paper} />
-        </Pressable>
-      </View>
+      <Composer
+        ref={inputRef}
+        value={draft}
+        onChangeText={setDraft}
+        onSend={send}
+        sending={sending}
+        canSend={coords !== null}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        emptyPlace={isEmpty}
+        // 키보드가 떠 있으면 홈 인디케이터가 키보드 뒤로 숨으므로 하단 inset 을 더하지 않는다
+        bottomPadding={keyboardShown ? 12 : Math.max(insets.bottom, 20)}
+      />
+
+      <MessageSheet message={sheetFor} onClose={() => setSheetFor(null)} onReply={startReply} />
     </KeyboardAvoidingView>
   );
 }
@@ -299,30 +321,5 @@ const styles = StyleSheet.create({
     fontFamily: font.sansMedium,
     fontSize: 14.5,
   },
-  composer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  input: {
-    flex: 1,
-    height: spacing.touchTarget,
-    paddingHorizontal: 16,
-    fontFamily: font.sans,
-    fontSize: 15,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 22,
-  },
-  send: {
-    width: spacing.touchTarget,
-    height: spacing.touchTarget,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
 
-export { MOCK_EMPTY };

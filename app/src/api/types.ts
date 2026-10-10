@@ -40,3 +40,6 @@ export const DEFAULT_CONFIG: RuntimeConfig = {
   heartbeatSec: 45,
   markerWindowHour: 6,
 };
+
+/** 본문 길이 제한 — 서버의 VARCHAR(500) 과 맞춘다 */
+export const CONTENT_MAX = 500;

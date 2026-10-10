@@ -1,6 +1,6 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
-import type { MessagePage, RuntimeConfig } from './types';
+import type { Message, MessagePage, RuntimeConfig } from './types';
 
 /**
  * 실제 서버 호출. 근거: docs/api.md
@@ -61,7 +61,14 @@ export function createHttpClient(baseUrl: string): ApiClient {
     },
 
     async postMessage({ at, content, replyToId }) {
-      await request('POST', '/messages', { content, lat: at.lat, lon: at.lon, replyToId });
+      // 201 응답에는 content 가 없다 — 보낸 값을 그대로 붙인다 (docs/api.md)
+      const created = await request<Omit<Message, 'content'>>('POST', '/messages', {
+        content,
+        lat: at.lat,
+        lon: at.lon,
+        replyToId,
+      });
+      return { ...created, content };
     },
 
     sendPresence({ at, sessionId }) {
