@@ -1,10 +1,14 @@
 package com.smim.server.presence;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.smim.server.common.DeviceKeys;
+import com.smim.server.common.GeoPoint;
 import com.smim.server.common.GlobalExceptionHandler;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;
@@ -20,15 +24,20 @@ class PresenceControllerTest {
 			{ "lat": 37.5563, "lon": 126.9238, "sessionId": "s-1" }
 			""";
 
-	private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new PresenceController())
+	private final PresenceStore store = mock(PresenceStore.class);
+
+	private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new PresenceController(store))
 		.setControllerAdvice(new GlobalExceptionHandler())
 		.build();
 
 	@Test
-	void 좌표를_받으면_204() throws Exception {
+	void 좌표를_받으면_저장하고_204() throws Exception {
 		mvc.perform(post("/presence").header(DeviceKeys.HEADER, DEVICE_KEY)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(BODY)).andExpect(status().isNoContent());
+
+		// 원본 키가 아니라 해시(author_key)가 넘어가야 한다
+		verify(store).upsert("s-1", DeviceKeys.toAuthorKey(DEVICE_KEY), new GeoPoint(37.5563, 126.9238));
 	}
 
 	@Test
@@ -36,6 +45,7 @@ class PresenceControllerTest {
 		mvc.perform(post("/presence").contentType(MediaType.APPLICATION_JSON).content(BODY))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("INVALID_DEVICE_KEY"));
+		verifyNoInteractions(store);
 	}
 
 	@Test

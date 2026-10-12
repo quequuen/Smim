@@ -49,5 +49,11 @@ smim:
       - { name: D, radius-m: 500, keep-radius-m: 750, move-threshold-m: 70 }
   location:
     heartbeat-sec: 45         # 서버 위치 등록 주기 · 화면 갱신과 무관
+  presence:
+    # 접속자 위치를 어디에 둘지. postgres(트랙 B) | redis(트랙 A, 8주차) — docs/tracks.md
+    store: postgres
+    stale-after: 2m           # 이보다 오래 갱신 없는 세션은 전달 대상에서 뺀다 (하트비트 45초 × 약 2.5)
+    purge-after: 10m          # 5분마다 이보다 오래된 세션을 지운다
+    move-tolerance-m: 10      # 이 안에서의 하트비트는 위치를 다시 쓰지 않는다 (HOT update · GPS 오차 수준)
   marker:
     window-hour: 6            # 익명 표식 구간 경계 (D4)
