@@ -1,6 +1,7 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
-import type { Message, MessagePage, RuntimeConfig } from './types';
+import { ApiError, networkError } from './errors';
+import type { Block, Message, MessagePage, Reply, RuntimeConfig } from './types';
 
 /**
  * 실제 서버 호출. 근거: docs/api.md
@@ -11,16 +12,6 @@ import type { Message, MessagePage, RuntimeConfig } from './types';
 
 const TIMEOUT_MS = 8_000;
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | null,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 export function createHttpClient(baseUrl: string): ApiClient {
   const root = baseUrl.replace(/\/+$/, '');
 
@@ -28,15 +19,21 @@ export function createHttpClient(baseUrl: string): ApiClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(root + path, {
-        method,
-        headers: {
-          'X-Device-Key': await getDeviceKey(),
-          ...(body !== undefined && { 'Content-Type': 'application/json' }),
-        },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      let res: Response;
+      try {
+        res = await fetch(root + path, {
+          method,
+          headers: {
+            'X-Device-Key': await getDeviceKey(),
+            ...(body !== undefined && { 'Content-Type': 'application/json' }),
+          },
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+      } catch {
+        // 오프라인·시간 초과는 fetch 가 TypeError·AbortError 로 던진다. 화면이 한 가지로 다루도록 바꾼다
+        throw networkError();
+      }
 
       if (!res.ok) {
         // 오류 형태: { code, message } — docs/api.md 4장
@@ -69,6 +66,32 @@ export function createHttpClient(baseUrl: string): ApiClient {
         replyToId,
       });
       return { ...created, content };
+    },
+
+    deleteMessage(id) {
+      return request<void>('DELETE', `/messages/${id}`);
+    },
+
+    reportMessage(id, reason) {
+      return request<void>('POST', `/messages/${id}/report`, { reason });
+    },
+
+    blockAuthor(messageId) {
+      return request<void>('POST', '/blocks', { messageId });
+    },
+
+    async getBlocks() {
+      const res = await request<{ blocks: Block[] }>('GET', '/blocks');
+      return res.blocks;
+    },
+
+    unblock(blockId) {
+      return request<void>('DELETE', `/blocks/${blockId}`);
+    },
+
+    async getReplies() {
+      const res = await request<{ replies: Reply[] }>('GET', '/replies');
+      return res.replies;
     },
 
     sendPresence({ at, sessionId }) {

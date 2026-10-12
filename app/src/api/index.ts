@@ -25,4 +25,4 @@ export const isServerConnected = http !== null;
 
 export * from './client';
 export * from './types';
-export { ApiError } from './httpClient';
+export * from './errors';

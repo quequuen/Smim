@@ -61,3 +61,11 @@ export function dayKey(iso: string): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${d.getFullYear()}-${m}-${day}`;
 }
+
+/**
+ * since 이후인가. since 가 없으면 전부 이후로 본다.
+ * 서버 시각은 +09:00, 로컬 저장 시각은 Z 로 끝나 문자열 비교가 틀린다 — 숫자로 비교한다.
+ */
+export function isAfter(iso: string, since: string | null): boolean {
+  return since === null || new Date(iso).getTime() > new Date(since).getTime();
+}

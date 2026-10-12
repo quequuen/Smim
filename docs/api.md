@@ -3,7 +3,7 @@
 앱과 서버가 주고받는 형태. **mock을 이 형태로 만들면 서버가 붙을 때 교체만 하면 된다.**
 
 - 관련 문서: [`location-policy.md`](location-policy.md) · [`tracks.md`](tracks.md) · [D7 시간 표기](decisions/D7-time-labeling.md)
-- 최종 수정: 2026-09-23
+- 최종 수정: 2026-10-10
 
 > **이 문서의 수명** — 서버에 springdoc을 붙이면 `/swagger-ui.html`이 코드에서 자동 생성된다.
 > 그때 아래 **3. 엔드포인트**의 필드 목록은 삭제하고, **1. 설계 원칙**과 **2. 인증**만 남긴다.
@@ -113,6 +113,8 @@ X-Device-Key: <base64, 32바이트 난수>
 - 최신순(`createdAt DESC`)
 - `status != 'visible'` 인 것과 차단한 작성자의 글은 서버가 걸러서 보낸다
 - `replyTo`는 인용 표시에 필요한 만큼만 — 표식이나 `isMine`은 넣지 않는다
+- 인용한 원글이 삭제·숨김·차단으로 **이 사용자에게 보이지 않으면 `replyTo.content`는 `null`** —
+  지운 글이 인용으로 남아 계속 읽히면 안 된다. 앱은 "지워진 글이에요"로 표시한다
 
 ---
 
@@ -154,7 +156,22 @@ X-Device-Key: <base64, 32바이트 난수>
 { "messageId": 1287 }   // author_key 를 노출하지 않으므로 메시지로 지목한다
 ```
 
-→ `204`. 해제는 `DELETE /blocks/{blockId}` — 목록은 `GET /blocks`가 id와 함께 내려준다.
+→ `204`. 해제는 `DELETE /blocks/{blockId}` → `204`.
+
+### `GET /blocks`
+
+설정의 차단 목록. 작성자를 보여줄 수 없으므로(D4) **차단할 때 지목한 글**을 함께 내려준다.
+
+```jsonc
+{
+  "blocks": [
+    { "id": 31, "messageContent": "여기 지금 사람 많아요?", "createdAt": "2026-10-10T14:02:00+09:00" }
+  ]
+}
+```
+
+- 최근 차단한 것부터
+- 지목한 글이 지워졌으면 `messageContent`는 `null`
 
 ---
 
@@ -172,12 +189,16 @@ X-Device-Key: <base64, 32바이트 난수>
       "createdAt": "2026-09-23T14:02:00+09:00",
       "myMessage": { "id": 1250, "content": "1년 전 사람들 아직 여기 오나" }
     }
-  ],
-  "unreadCount": 2
+  ]
 }
 ```
 
+- 최신순. 최대 50개
+- 지운 글·신고한 글·차단한 작성자의 답글은 빠진다 (`GET /messages`와 같은 필터)
+
 읽음 처리는 앱이 마지막 확인 시각을 로컬에 보관해 판단한다. 서버에 상태를 두지 않는다.
+**그래서 `unreadCount`는 응답에 없다** — 서버는 마지막 확인 시각을 모르므로 셀 수 없다.
+앱이 `createdAt > 마지막 확인 시각`인 개수를 센다.
 
 ---
 
