@@ -17,6 +17,7 @@ const http = API_URL ? createHttpClient(API_URL) : null;
 export const api: ApiClient = http
   ? {
       ...mockClient,
+      getConfig: http.getConfig, // #9
       sendPresence: http.sendPresence, // #7
     }
   : mockClient;

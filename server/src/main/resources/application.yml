@@ -34,14 +34,20 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
-# ── 런타임 설정 기본값 ────────────────────────────────────────
+# ── 런타임 설정 ──────────────────────────────────────────────
 # GET /config 가 앱에 내려주는 값. 근거는 docs/location-policy.md
-# 반경은 확정값이 아니라 기본값이다 — 9주차 실험으로 결정한다.
+# 반경은 확정값이 아니라 실험 조건이다 — 9주차 실험으로 결정한다.
 smim:
+  experiment:
+    # hash(author_key) % 그룹 수 로 배정한다 (location-policy.md 4장). 같은 기기는 항상 같은 그룹
+    # 실험을 끝내려면 확정한 그룹 하나만 남긴다 — 앱 업데이트 없이 전원이 그 값을 받는다
+    # keep-radius = radius × 1.5 · move-threshold = radius 의 1/6 ~ 1/8 (location-policy.md 1-1)
+    groups:
+      - { name: A, radius-m: 100, keep-radius-m: 150, move-threshold-m: 15 }
+      - { name: B, radius-m: 150, keep-radius-m: 225, move-threshold-m: 20 }
+      - { name: C, radius-m: 300, keep-radius-m: 450, move-threshold-m: 45 }
+      - { name: D, radius-m: 500, keep-radius-m: 750, move-threshold-m: 70 }
   location:
-    radius-m: 300
-    keep-radius-m: 450        # radius × 1.5 · GPS 오차로 인한 깜빡임 방지
-    move-threshold-m: 45      # radius 의 1/6 ~ 1/8 · 화면 재조회 기준
     heartbeat-sec: 45         # 서버 위치 등록 주기 · 화면 갱신과 무관
   marker:
     window-hour: 6            # 익명 표식 구간 경계 (D4)

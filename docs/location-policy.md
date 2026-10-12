@@ -103,22 +103,22 @@ GET /config
 ```json
 {
   "group": "B",
-  "radius_m": 300,
-  "keep_radius_m": 450,
-  "move_threshold_m": 45,
-  "heartbeat_sec": 45,
-  "marker_window_hour": 6
+  "radiusM": 300,
+  "keepRadiusM": 450,
+  "moveThresholdM": 45,
+  "heartbeatSec": 45,
+  "markerWindowHour": 6
 }
 ```
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `group` | string | A/B 실험 그룹. 로그에 함께 기록한다 |
-| `radius_m` | int | 조회·전달 반경 |
-| `keep_radius_m` | int | 로드된 메시지 유지 범위 |
-| `move_threshold_m` | int | 화면 갱신 유발 이동 거리 |
-| `heartbeat_sec` | int | 서버 위치 등록 주기 |
-| `marker_window_hour` | int | 표식 구간 경계 (D4) |
+| `radiusM` | int | 조회·전달 반경 |
+| `keepRadiusM` | int | 로드된 메시지 유지 범위 |
+| `moveThresholdM` | int | 화면 갱신 유발 이동 거리 |
+| `heartbeatSec` | int | 서버 위치 등록 주기 |
+| `markerWindowHour` | int | 표식 구간 경계 (D4) |
 
 ### 3-2. 클라이언트 규칙
 
