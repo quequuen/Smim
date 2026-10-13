@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api, type Block } from '../api';
+import { api, isServerConnected, type Block } from '../api';
 import { getMockScenario, MOCK_SCENARIOS, setMockScenario, type MockScenario } from '../api/mockClient';
 import { ChevronIcon } from '../components/Icons';
 import { ScreenModal } from '../components/ScreenModal';
@@ -114,7 +114,8 @@ function MainPage({
         </Text>
       </View>
 
-      {__DEV__ && <MockScenarioPicker onChanged={onScenarioChanged} />}
+      {/* 서버에 붙으면 mock 을 거치지 않으므로 시나리오가 아무 효과가 없다 */}
+      {__DEV__ && !isServerConnected && <MockScenarioPicker onChanged={onScenarioChanged} />}
     </ScrollView>
   );
 }

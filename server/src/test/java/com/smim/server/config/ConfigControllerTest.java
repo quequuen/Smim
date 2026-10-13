@@ -22,7 +22,7 @@ class ConfigControllerTest {
 			new SmimProperties.Experiment(List.of(new SmimProperties.Group("A", 100, 150, 15),
 					new SmimProperties.Group("B", 150, 225, 20), new SmimProperties.Group("C", 300, 450, 45),
 					new SmimProperties.Group("D", 500, 750, 70))),
-			new SmimProperties.Location(45), new SmimProperties.Marker(6));
+			new SmimProperties.Location(45), new SmimProperties.Marker(6, 300));
 
 	private final MockMvc mvc = mvcWith(PROPS);
 
@@ -81,7 +81,7 @@ class ConfigControllerTest {
 	void 그룹을_하나만_남기면_전원이_그_값을_받는다() throws Exception {
 		MockMvc single = mvcWith(new SmimProperties(
 				new SmimProperties.Experiment(List.of(new SmimProperties.Group("C", 300, 450, 45))),
-				new SmimProperties.Location(45), new SmimProperties.Marker(6)));
+				new SmimProperties.Location(45), new SmimProperties.Marker(6, 300)));
 		for (int i = 0; i < 16; i++) {
 			assertThat(groupOf(single, key(i))).isEqualTo("C");
 		}

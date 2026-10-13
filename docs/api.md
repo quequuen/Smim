@@ -3,7 +3,7 @@
 앱과 서버가 주고받는 형태. **mock을 이 형태로 만들면 서버가 붙을 때 교체만 하면 된다.**
 
 - 관련 문서: [`location-policy.md`](location-policy.md) · [`tracks.md`](tracks.md) · [D7 시간 표기](decisions/D7-time-labeling.md)
-- 최종 수정: 2026-10-10
+- 최종 수정: 2026-10-13
 
 > **이 문서의 수명** — 서버에 springdoc을 붙이면 `/swagger-ui.html`이 코드에서 자동 생성된다.
 > 그때 아래 **3. 엔드포인트**의 필드 목록은 삭제하고, **1. 설계 원칙**과 **2. 인증**만 남긴다.
@@ -86,9 +86,9 @@ X-Device-Key: <base64, 32바이트 난수>
 | 파라미터 | 필수 | 설명 |
 |---|:---:|---|
 | `lat` `lon` | ✓ | 현재 좌표 |
-| `radius` | ✓ | `/config`의 `radiusM` |
-| `cursor` | | 이 시각보다 **이전** 것을 가져온다 (위로 스크롤) |
-| `limit` | | 기본 50 |
+| `radius` | ✓ | `/config`의 `radiusM`. 실험 그룹 중 가장 큰 반경을 넘으면 `400` — 넓게 긁어 가지 못하게 |
+| `cursor` | | 이 시각보다 **이전** 것을 가져온다 (위로 스크롤). 직전 응답의 `nextCursor`를 그대로 넣는다 |
+| `limit` | | 기본 50, 최대 100 |
 
 ```jsonc
 {
@@ -124,19 +124,25 @@ X-Device-Key: <base64, 32바이트 난수>
 // 요청
 { "content": "저도 그거 보고 왔어요", "lat": 37.5563, "lon": 126.9238, "replyToId": 1280 }
 
-// 201
-{ "id": 1291, "marker": 3, "isMine": true, "createdAt": "2026-09-23T16:02:00+09:00", "replyTo": { ... } }
+// 201 — GET /messages 의 항목과 같은 형태 (WebSocket 페이로드도 같다)
+{ "id": 1291, "content": "저도 그거 보고 왔어요", "marker": 3, "isMine": true, "createdAt": "2026-09-23T07:02:00.123456Z", "replyTo": { ... } }
 ```
 
-- `content` 1~500자
-- `marker`는 **서버가 작성 시점에 확정해 저장**한다 (같은 구역 최근 `markerWindowHour` 내 사용 중인 표식을 피함)
-- 금지 구역(`banned_area`) 안이면 `403`
+- `content` 1~500자, 공백만은 안 된다
+- `marker`는 **서버가 작성 시점에 확정해 저장**한다. 같은 구역(300m) 최근 `markerWindowHour` 안에서
+  1. 내가 이미 쓴 글이 있으면 **그 표식** — 같은 구간 안에서 같은 사람은 같은 기호
+  2. 아니면 아무도 안 쓴 가장 작은 번호
+  3. 24개가 다 쓰였으면 무작위
+- 금지 구역(`banned_area`) 안이면 `403 BANNED_AREA`
+- `replyToId`의 글이 이 사용자에게 보이지 않으면(지움·숨김·신고·차단) `404`
 
 ---
 
 ### `DELETE /messages/{id}`
 
-본인 글만. 타인 글이면 `403`. → `204`
+본인 글만. 타인 글이면 `403 NOT_OWNER`, 없거나 이미 지운 글이면 `404`. → `204`
+
+행은 지우지 않고 `status = 'deleted'`로 둔다 — 답글·신고·차단이 이 글을 가리키고 있다.
 
 ---
 
@@ -146,7 +152,9 @@ X-Device-Key: <base64, 32바이트 난수>
 { "reason": "abuse" }   // abuse | spam | privacy | other
 ```
 
-같은 사람이 같은 글을 중복 신고할 수 없다(`409`). 누적 임계치를 넘으면 서버가 자동 블라인드한다. → `204`
+같은 사람이 같은 글을 중복 신고할 수 없다(`409 ALREADY_REPORTED`). 신고한 사람에게는 바로 보이지 않는다. → `204`
+
+> 누적 임계치 자동 블라인드는 #16 (7주차) 에서 붙인다.
 
 ---
 
@@ -156,7 +164,9 @@ X-Device-Key: <base64, 32바이트 난수>
 { "messageId": 1287 }   // author_key 를 노출하지 않으므로 메시지로 지목한다
 ```
 
-→ `204`. 해제는 `DELETE /blocks/{blockId}` → `204`.
+→ `204`. 이미 차단한 작성자면 아무것도 하지 않고 `204`. 내 글을 지목하면 `400`.
+
+해제는 `DELETE /blocks/{blockId}` → `204`. 남의 차단 항목이면 없는 것과 같은 `404`.
 
 ### `GET /blocks`
 
@@ -171,7 +181,7 @@ X-Device-Key: <base64, 32바이트 난수>
 ```
 
 - 최근 차단한 것부터
-- 지목한 글이 지워졌으면 `messageContent`는 `null`
+- 지목한 글이 지워졌거나 숨겨졌으면 `messageContent`는 `null`
 
 ---
 
@@ -248,7 +258,9 @@ STOMP. 접속 시 `X-Device-Key`로 인증하고 위치를 등록한다.
 | 코드 | HTTP | |
 |---|---|---|
 | `INVALID_DEVICE_KEY` | 401 | 헤더 없음/형식 오류 |
+| `INVALID_REQUEST` | 400 | 형식 오류 · 범위 초과 |
 | `NOT_OWNER` | 403 | 남의 글 삭제 시도 |
+| `NOT_FOUND` | 404 | 없는 글 · 지운 글 · 남의 차단 항목 (구분하지 않는다) |
 | `BANNED_AREA` | 403 | 금지 구역 |
 | `ALREADY_REPORTED` | 409 | 중복 신고 |
 | `RATE_LIMITED` | 429 | 도배 방지 |
