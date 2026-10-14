@@ -31,9 +31,9 @@ A와 B는 **같은 인터페이스의 두 구현**이다. 메시지·신고·차
 
 ```java
 public interface PresenceStore {
-    void upsert(String sessionId, String authorKey, Point location);
-    void touch(String sessionId);                              // 하트비트
-    List<String> findSessionsWithin(Point center, int radiusM);
+    void upsert(String sessionId, String authorKey, GeoPoint location);
+    void touch(String sessionId);                              // 위치 없이 생존 신호만
+    List<String> findSessionsWithin(GeoPoint center, int radiusM);
     void remove(String sessionId);
     int purgeStale(Duration olderThan);
 }
@@ -44,6 +44,9 @@ smim:
   presence:
     store: postgres   # postgres | redis
 ```
+
+`GeoPoint(lat, lon)`은 직접 만든 레코드다. JTS `Point`는 x=경도·y=위도라 순서가 뒤바뀌기 쉽고,
+Redis 구현에는 JTS가 필요 없다.
 
 ### 설계 규칙 두 가지
 
@@ -89,6 +92,10 @@ UPDATE active_session SET updated_at = now() WHERE session_id = :id;
 -- 실제 이동 시에만
 UPDATE active_session SET location = :point, updated_at = now() WHERE session_id = :id;
 ```
+
+앱은 하트비트마다 좌표를 보내므로 `upsert` 안에서 나눈다 — 저장된 위치에서
+`move-tolerance-m`(10m) 안이면 첫 번째, 벗어났거나 처음 보는 세션이면 `INSERT ... ON CONFLICT`.
+같은 `session_id`라도 `author_key`가 다르면 덮어쓰지 않는다.
 
 > `location`에 GiST 인덱스가 걸려 있어 이 컬럼을 UPDATE하면 인덱스도 갱신되고
 > HOT update가 불가능해진다. 하트비트 대부분은 제자리이므로 나누면 비용이 크게 줄어든다.

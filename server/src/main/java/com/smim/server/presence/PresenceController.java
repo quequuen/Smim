@@ -1,6 +1,7 @@
 package com.smim.server.presence;
 
 import com.smim.server.common.DeviceKeys;
+import com.smim.server.common.GeoPoint;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +15,18 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 하트비트 — 실시간 전달 대상에 포함되기 위한 위치 등록. 근거: docs/api.md 3장
  *
- * 지금은 받은 좌표를 확인만 한다 (#7). 저장은 PresenceStore(#8)가 붙으면서 시작한다.
+ * PresenceStore 는 트랜잭션 밖에서 부른다 (docs/tracks.md 1장). 여기에는 트랜잭션이 없다.
  */
 @RestController
 public class PresenceController {
 
 	private static final Logger log = LoggerFactory.getLogger(PresenceController.class);
+
+	private final PresenceStore store;
+
+	public PresenceController(PresenceStore store) {
+		this.store = store;
+	}
 
 	@PostMapping("/presence")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
@@ -31,6 +38,6 @@ public class PresenceController {
 		log.debug("presence session={} author={}… lat={} lon={}", req.sessionId(), authorKey.substring(0, 8),
 				req.lat(), req.lon());
 
-		// TODO(#8): presenceStore.upsert(req.sessionId(), authorKey, point(req.lon(), req.lat()))
+		store.upsert(req.sessionId(), authorKey, new GeoPoint(req.lat(), req.lon()));
 	}
 }
