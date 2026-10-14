@@ -57,15 +57,9 @@ export function createHttpClient(baseUrl: string): ApiClient {
       return request<MessagePage>('GET', `/messages?${q}`);
     },
 
-    async postMessage({ at, content, replyToId }) {
-      // 201 응답에는 content 가 없다 — 보낸 값을 그대로 붙인다 (docs/api.md)
-      const created = await request<Omit<Message, 'content'>>('POST', '/messages', {
-        content,
-        lat: at.lat,
-        lon: at.lon,
-        replyToId,
-      });
-      return { ...created, content };
+    postMessage({ at, content, replyToId }) {
+      // 201 응답은 목록 항목과 같은 형태다 (docs/api.md)
+      return request<Message>('POST', '/messages', { content, lat: at.lat, lon: at.lon, replyToId });
     },
 
     deleteMessage(id) {

@@ -57,3 +57,4 @@ smim:
     move-tolerance-m: 10      # 이 안에서의 하트비트는 위치를 다시 쓰지 않는다 (HOT update · GPS 오차 수준)
   marker:
     window-hour: 6            # 익명 표식 구간 경계 (D4)
+    area-m: 300               # "같은 구역" — 이 반경 안 최근 window-hour 의 표식을 피해 배정한다

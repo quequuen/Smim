@@ -16,6 +16,11 @@ public record SmimProperties(@NotNull @Valid Experiment experiment, @NotNull @Va
 		@NotNull @Valid Marker marker) {
 
 	public record Experiment(@NotEmpty List<@Valid Group> groups) {
+
+		/** GET /messages 가 받아들이는 반경 상한. 이보다 넓게 긁어 가지 못하게 한다 */
+		public int maxRadiusM() {
+			return groups.stream().mapToInt(Group::radiusM).max().orElseThrow();
+		}
 	}
 
 	public record Group(@NotBlank String name, @Positive int radiusM, @Positive int keepRadiusM,
@@ -25,6 +30,6 @@ public record SmimProperties(@NotNull @Valid Experiment experiment, @NotNull @Va
 	public record Location(@Positive int heartbeatSec) {
 	}
 
-	public record Marker(@Positive int windowHour) {
+	public record Marker(@Positive int windowHour, @Positive int areaM) {
 	}
 }
