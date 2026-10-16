@@ -7,8 +7,11 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -77,6 +80,24 @@ public class MessageRepository {
 			return new MessageResponse(rs.getLong("id"), rs.getString("content"), rs.getInt("marker"),
 					rs.getBoolean("is_mine"), instant(rs, "created_at"), quote);
 		});
+	}
+
+	/**
+	 * viewers 중 이 글을 볼 수 없는 사람 — 신고했거나 작성자를 차단했다. 실시간 전달에서 visibleTo() 를 대신한다.
+	 * 지운 · 숨긴 글은 여기서 보지 않는다 (방금 쓴 글이거나, 쓴 사람이 방금 인용한 글이다).
+	 */
+	public Set<String> viewersWhoCannotSee(long messageId, Collection<String> viewers) {
+		if (viewers.isEmpty()) {
+			return Set.of();
+		}
+		return new HashSet<>(jdbc.queryForList("""
+				SELECT rp.reporter_key FROM report rp
+				WHERE rp.message_id = :id AND rp.reporter_key IN (:viewers)
+				UNION
+				SELECT ub.blocker_key FROM user_block ub
+				JOIN message m ON m.id = :id AND ub.blocked_author_key = m.author_key
+				WHERE ub.blocker_key IN (:viewers)
+				""", new MapSqlParameterSource().addValue("id", messageId).addValue("viewers", viewers), String.class));
 	}
 
 	/** 답글을 달 수 있는 글 — 이 사용자에게 보이는 글만 */

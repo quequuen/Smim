@@ -1,6 +1,7 @@
 import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
 import { ApiError, networkError } from './errors';
+import { createLiveConnection } from './liveClient';
 import type { Block, Message, MessagePage, Reply, RuntimeConfig } from './types';
 
 /**
@@ -90,6 +91,10 @@ export function createHttpClient(baseUrl: string): ApiClient {
 
     sendPresence({ at, sessionId }) {
       return request<void>('POST', '/presence', { lat: at.lat, lon: at.lon, sessionId });
+    },
+
+    connectLive(opts) {
+      return createLiveConnection(root, opts);
     },
   };
 }

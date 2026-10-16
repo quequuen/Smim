@@ -35,6 +35,7 @@ import { Toast, useToast } from '../components/Toast';
 import { describeError } from '../lib/errorMessage';
 import { getItem, KEYS, setItem } from '../lib/storage';
 import { dayKey, isAfter, isWideGap } from '../lib/time';
+import { useLive } from '../lib/useLive';
 import { useLocation } from '../lib/useLocation';
 import { usePresence, type PresenceState } from '../lib/usePresence';
 import { font, spacing } from '../theme/tokens';
@@ -146,6 +147,29 @@ export function MainScreen() {
     const sub = AppState.addEventListener('change', (s) => s === 'active' && loadErrorRef.current && load());
     return () => sub.remove();
   }, [load]);
+
+  // ── 실시간 수신 (D5) ─────────────────────
+  // 이미 있는 글은 건너뛴다 — 재연결 보충과 실시간 수신이 같은 글을 두 번 줄 수 있다
+  const mergeNew = useCallback((incoming: Message[]) => {
+    setMessages((prev) => {
+      if (!prev) return prev; // 첫 불러오기 전이면 그 결과에 이미 들어 있다
+      const have = new Set(prev.map((m) => m.id));
+      const added = incoming.filter((m) => !have.has(m.id));
+      return added.length ? [...prev, ...added] : prev;
+    });
+  }, []);
+
+  const live = useLive(coords, {
+    onMessage: (m) => {
+      mergeNew([m]);
+      if (m.replyTo) loadReplies(); // 내 글에 단 답글이면 배지가 떠야 한다
+    },
+    // 끊긴 동안 쓰인 글 — 영구 저장이라 최신 페이지를 다시 받아 합치면 된다 (D5)
+    onReconnected: () => {
+      if (!coords) return;
+      api.getMessages({ at: coords, radiusM: config.radiusM }).then((page) => mergeNew(page.messages), () => {});
+    },
+  });
 
   const unreadCount = replies?.filter((r) => isAfter(r.createdAt, seenAt)).length ?? 0;
 
@@ -283,7 +307,7 @@ export function MainScreen() {
         <View>
           <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
           {__DEV__ && isServerConnected && (
-            <Text style={[styles.devStatus, { color: palette.muted }]}>{describePresence(presence)}</Text>
+            <Text style={[styles.devStatus, { color: palette.muted }]}>{describePresence(presence)} · live {live}</Text>
           )}
         </View>
         <View style={styles.headerActions}>
