@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,9 +31,12 @@ public class MessageService {
 
 	private final SmimProperties props;
 
-	public MessageService(MessageRepository repo, SmimProperties props) {
+	private final ApplicationEventPublisher events;
+
+	public MessageService(MessageRepository repo, SmimProperties props, ApplicationEventPublisher events) {
 		this.repo = repo;
 		this.props = props;
+		this.events = events;
 	}
 
 	public MessagePage near(String me, MessageQuery q) {
@@ -61,7 +65,10 @@ public class MessageService {
 
 		int marker = assignMarker(me, repo.recentMarkers(at, props.marker().areaM(), props.marker().windowHour()));
 		Created c = repo.insert(me, req.content(), at, marker, req.replyToId());
-		return new MessageResponse(c.id(), req.content(), marker, true, c.createdAt(), quote);
+		MessageResponse created = new MessageResponse(c.id(), req.content(), marker, true, c.createdAt(), quote);
+		// 실시간 전달은 커밋 후에 (LiveDelivery)
+		events.publishEvent(new MessageCreated(created, me, at));
+		return created;
 	}
 
 	/**

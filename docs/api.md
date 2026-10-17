@@ -3,7 +3,7 @@
 앱과 서버가 주고받는 형태. **mock을 이 형태로 만들면 서버가 붙을 때 교체만 하면 된다.**
 
 - 관련 문서: [`location-policy.md`](location-policy.md) · [`tracks.md`](tracks.md) · [D7 시간 표기](decisions/D7-time-labeling.md)
-- 최종 수정: 2026-10-13
+- 최종 수정: 2026-10-16
 
 > **이 문서의 수명** — 서버에 springdoc을 붙이면 `/swagger-ui.html`이 코드에서 자동 생성된다.
 > 그때 아래 **3. 엔드포인트**의 필드 목록은 삭제하고, **1. 설계 원칙**과 **2. 인증**만 남긴다.
@@ -242,10 +242,29 @@ X-Device-Key: <base64, 32바이트 난수>
 
 ### WebSocket `/ws`
 
-STOMP. 접속 시 `X-Device-Key`로 인증하고 위치를 등록한다.
-반경 내에서 새 메시지가 작성되면 서버가 밀어준다. 페이로드는 `GET /messages`의 항목과 동일한 형태.
+STOMP over WebSocket (SockJS 없음). **받기 전용** — 글쓰기는 `POST /messages`로 한다.
 
-- 재연결 시 마지막 수신 `createdAt` 이후를 `GET /messages`로 보충한다 (영구 저장이라 복구가 단순하다)
+```
+CONNECT
+X-Device-Key: <base64>
+session-id: <POST /presence 와 같은 값>
+lat: 37.5563          ← 있으면 접속과 동시에 위치 등록 (다음 하트비트를 기다리지 않는다)
+lon: 126.9238
+
+SUBSCRIBE
+destination: /user/queue/messages
+```
+
+- 페이로드는 `GET /messages`의 항목과 같은 형태. 작성자 본인에게는 보내지 않는다 (POST 응답으로 이미 붙였다)
+- 전달 대상은 **저장이 커밋된 뒤** `PresenceStore`로 고르고, 수신자마다 `GET /messages`와 같은 결과가 되게 거른다
+  - 수신자의 실험 그룹 반경 안일 때만
+  - 작성자를 차단한 사람에게는 보내지 않는다
+  - 인용한 원글을 신고·차단한 사람에게는 `replyTo.content`가 `null`
+- 하트비트 10초 / 10초. 소켓이 조용히 죽는 경우(Wi-Fi ↔ LTE)를 이것으로 알아챈다
+- 연결이 끊기면 서버가 위치를 바로 지운다 (만료 처리 ①)
+- 기기 키가 없거나, 다른 기기가 쓰는 `session-id`면 ERROR 프레임 후 연결 종료
+- `/user/queue/messages` 외의 구독과 SEND는 거부한다
+- 재연결 시 `GET /messages` 최신 페이지를 받아 id 로 합친다 (영구 저장이라 복구가 단순하다)
 
 ---
 

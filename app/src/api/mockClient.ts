@@ -261,4 +261,9 @@ export const mockClient: ApiClient = {
   async sendPresence() {
     return delay(undefined, 80);
   },
+
+  // mock 은 남이 쓰는 글이 없으므로 실시간으로 올 것도 없다
+  connectLive() {
+    return { start() {}, stop() {} };
+  },
 };
