@@ -11,8 +11,8 @@ import { DEFAULT_CONFIG, type Block, type Message, type MessagePage, type Quoted
  * 최근 블록만 "어제"가 나오도록 실행 시점 기준으로 만든다.
  */
 
-/** 빈 화면을 보려면 이 값을 true 로 바꾼다 */
-export const MOCK_EMPTY = false;
+/** 시드 글을 보려면 이 값을 false 로 바꾼다 — 시간 구분선 규칙 확인용 */
+export const MOCK_EMPTY = true;
 
 function hoursAgo(h: number): string {
   return new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
