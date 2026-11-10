@@ -1,0 +1,23 @@
+[Unit]
+Description=Smim Backend
+# DB 는 Docker 컨테이너라 docker 가 먼저 떠야 한다
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/smim
+EnvironmentFile=/home/ubuntu/smim/.env
+# nginx 만 거치게 한다 — 밖에서 8082 로 직접 못 붙는다
+Environment=SERVER_ADDRESS=127.0.0.1
+# exec 를 써야 java 가 PID 1 자리를 받아 systemd 의 신호를 직접 받는다 (Asker 장애 ①)
+ExecStart=/usr/bin/java -Xms256m -Xmx1g -jar /home/ubuntu/smim/app.jar
+# Spring Boot 는 SIGTERM 에 143 을 돌려준다. 실패로 치면 재시작 루프에 빠진다
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
