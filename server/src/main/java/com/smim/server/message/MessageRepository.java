@@ -4,6 +4,7 @@ import com.smim.server.common.GeoPoint;
 import com.smim.server.message.MessageResponse.QuotedMessage;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -196,5 +197,115 @@ public class MessageRepository {
 				(rs, i) -> new ReplyResponse(rs.getLong("id"), rs.getString("content"), rs.getInt("marker"),
 						instant(rs, "created_at"),
 						new ReplyResponse.MyMessage(rs.getLong("my_id"), rs.getString("my_content"))));
+	}
+
+	// ── 모더레이션 (#16) ──────────────────────────────────────────
+
+	/** 도배 제한 — 이 기기가 최근 window 안에 쓴 글 수. 지운 글도 센다 (쓰고 지우기를 반복할 수 있다) */
+	public int countRecentBy(String authorKey, Duration window) {
+		Integer n = jdbc.queryForObject("""
+				SELECT count(*) FROM message
+				WHERE author_key = :me AND created_at > now() - make_interval(secs => :secs)
+				""", new MapSqlParameterSource().addValue("me", authorKey).addValue("secs", window.toSeconds()),
+				Integer.class);
+		return n == null ? 0 : n;
+	}
+
+	/** 서로 다른 기기 몇 대가 이 글을 신고했나. UNIQUE (message_id, reporter_key) 라 행 수가 곧 기기 수다 */
+	public int countReports(long messageId) {
+		Integer n = jdbc.queryForObject("SELECT count(*) FROM report WHERE message_id = :id",
+				new MapSqlParameterSource("id", messageId), Integer.class);
+		return n == null ? 0 : n;
+	}
+
+	/**
+	 * 모두에게 가린다. 보이는 글만 바꾸므로 이미 가려졌거나 지워진 글에는 아무 일도 없다.
+	 *
+	 * @return 이번 호출이 실제로 가렸으면 true — 자동 구역 차단을 한 번만 검사하기 위해 필요하다
+	 */
+	public boolean hide(long id) {
+		return jdbc.update("UPDATE message SET status = 'hidden' WHERE id = :id AND status = 'visible'",
+				new MapSqlParameterSource("id", id)) > 0;
+	}
+
+	/** 관리자 해제. 오탐으로 가려진 글을 되돌린다. 지운 글은 되살리지 않는다 */
+	public boolean unhide(long id) {
+		return jdbc.update("UPDATE message SET status = 'visible' WHERE id = :id AND status = 'hidden'",
+				new MapSqlParameterSource("id", id)) > 0;
+	}
+
+	/** 자동 구역 차단 판단에 쓸 좌표. 지운 글은 세지 않으므로 여기서도 뺀다 */
+	public Optional<GeoPoint> locationOf(long id) {
+		return jdbc
+			.query("""
+					SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon
+					FROM message WHERE id = :id AND status <> 'deleted'
+					""", new MapSqlParameterSource("id", id),
+					(rs, i) -> new GeoPoint(rs.getDouble("lat"), rs.getDouble("lon")))
+			.stream()
+			.findFirst();
+	}
+
+	/** 이 반경 안에서 최근 window 동안 가려진 글 수 (idx_message_hidden) */
+	public int countHiddenNear(GeoPoint at, int radiusM, Duration window) {
+		Integer n = jdbc.queryForObject("""
+				SELECT count(*) FROM message
+				WHERE status = 'hidden'
+				  AND ST_DWithin(location, %s, :radius)
+				  AND created_at > now() - make_interval(secs => :secs)
+				""".formatted(POINT),
+				params(null, at).addValue("radius", radiusM).addValue("secs", window.toSeconds()), Integer.class);
+		return n == null ? 0 : n;
+	}
+
+	public long insertBannedArea(GeoPoint center, int radiusM, String reason, String source) {
+		Long id = jdbc.queryForObject("""
+				INSERT INTO banned_area (center, radius_m, reason, source)
+				VALUES (%s, :radius, :reason, :source)
+				RETURNING id
+				""".formatted(POINT),
+				params(null, center).addValue("radius", radiusM).addValue("reason", reason).addValue("source", source),
+				Long.class);
+		return id == null ? 0 : id;
+	}
+
+	public List<BannedArea> listBannedAreas() {
+		return jdbc.query("""
+				SELECT id, ST_Y(center::geometry) AS lat, ST_X(center::geometry) AS lon,
+				       radius_m, reason, source, created_at
+				FROM banned_area ORDER BY created_at DESC
+				""", (rs, i) -> new BannedArea(rs.getLong("id"), rs.getDouble("lat"), rs.getDouble("lon"),
+						rs.getInt("radius_m"), rs.getString("reason"), rs.getString("source"),
+						instant(rs, "created_at")));
+	}
+
+	/** 좌표를 담고 나간다 — 관리자 전용이다. 일반 응답에는 절대 넣지 않는다 (D4) */
+	public record BannedArea(long id, double lat, double lon, int radiusM, String reason, String source,
+			Instant createdAt) {
+	}
+
+	public boolean deleteBannedArea(long id) {
+		return jdbc.update("DELETE FROM banned_area WHERE id = :id", new MapSqlParameterSource("id", id)) > 0;
+	}
+
+	/** 관리자 검토 대기열 — 신고가 붙은 글을 많이 신고된 순으로 */
+	public List<ReportedMessage> findReported(int limit) {
+		return jdbc.query("""
+				SELECT m.id, m.content, m.status, m.created_at,
+				       count(r.id) AS reports, min(r.created_at) AS first_reported,
+				       string_agg(DISTINCT r.reason, ',' ORDER BY r.reason) AS reasons
+				FROM message m JOIN report r ON r.message_id = m.id
+				WHERE m.status <> 'deleted'
+				GROUP BY m.id, m.content, m.status, m.created_at
+				ORDER BY count(r.id) DESC, min(r.created_at)
+				LIMIT :limit
+				""", new MapSqlParameterSource("limit", limit),
+				(rs, i) -> new ReportedMessage(rs.getLong("id"), rs.getString("content"), rs.getString("status"),
+						rs.getInt("reports"), rs.getString("reasons"), instant(rs, "first_reported"),
+						instant(rs, "created_at")));
+	}
+
+	public record ReportedMessage(long id, String content, String status, int reports, String reasons,
+			Instant firstReportedAt, Instant createdAt) {
 	}
 }
