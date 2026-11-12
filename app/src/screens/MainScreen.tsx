@@ -306,6 +306,10 @@ export function MainScreen() {
       <View style={[styles.header, { borderBottomColor: palette.ruleSoft }]}>
         <View>
           <Text style={[styles.headerLabel, { color: palette.muted }]}>이 근처</Text>
+          {/* 서버가 하한(smim.presence.nearby-min)에 못 미치면 숫자를 안 내려보낸다 — 그때는 줄 자체가 없다 */}
+          {presence.nearby !== null && (
+            <Text style={[styles.headerNearby, { color: palette.muted }]}>지금 {presence.nearby}명</Text>
+          )}
           {__DEV__ && isServerConnected && (
             <Text style={[styles.devStatus, { color: palette.muted }]}>{describePresence(presence)} · live {live}</Text>
           )}
@@ -540,6 +544,12 @@ const styles = StyleSheet.create({
     fontFamily: font.mono,
     fontSize: 12,
     letterSpacing: 1.68, // 0.14em × 12px
+  },
+  headerNearby: {
+    fontFamily: font.mono,
+    fontSize: 11,
+    letterSpacing: 0.66, // 0.06em × 11px
+    marginTop: 3,
   },
   devStatus: {
     fontFamily: font.mono,

@@ -27,6 +27,12 @@ public interface PresenceStore {
 	/** 반경 안의 살아 있는 세션. 오래 갱신되지 않은 유령 세션은 빠진다 */
 	List<String> findSessionsWithin(GeoPoint center, int radiusM);
 
+	/**
+	 * 반경 안에 지금 있는 **사람** 수. 세션이 아니라 author_key 를 센다 —
+	 * 한 사람이 폰과 다른 기기로 두 세션을 열 수 있고, 화면에는 "N명" 으로 나간다.
+	 */
+	int countAuthorsWithin(GeoPoint center, int radiusM);
+
 	void remove(String sessionId);
 
 	/** @return 지운 세션 수 */

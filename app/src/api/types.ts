@@ -71,4 +71,14 @@ export type Block = {
 };
 
 /** 본문 길이 제한 — 서버의 VARCHAR(500) 과 맞춘다 */
+/**
+ * POST /presence 응답. 근거: docs/api.md 3장
+ *
+ * nearby 는 반경 안에 지금 있는 사람 수(나 포함)이고, **서버가 정한 하한에 못 미치면 null** 이다.
+ * 앱이 숨기는 것이 아니라 서버가 지워서 보낸다 — 혼자 있을 때 "2명" 은 특정인의 존재를 알려주는 셈이다.
+ */
+export type Presence = {
+  nearby: number | null;
+};
+
 export const CONTENT_MAX = 500;

@@ -121,4 +121,43 @@ class PostgresPresenceStoreTest {
 
 		assertThat(store.findSessionsWithin(HERE, 100)).doesNotContain("test-s");
 	}
+
+	@Test
+	void 반경_안의_사람_수를_센다() {
+		store.upsert("test-a", ME, north(100));
+		store.upsert("test-b", OTHER, north(200));
+
+		assertThat(store.countAuthorsWithin(HERE, 300)).isEqualTo(2);
+	}
+
+	/** 한 사람이 폰과 다른 기기로 두 세션을 열어도 한 명이다 — 화면에 "N명" 으로 나간다 */
+	@Test
+	void 같은_사람의_여러_세션은_한_명으로_센다() {
+		store.upsert("test-phone", ME, north(50));
+		store.upsert("test-tablet", ME, north(60));
+
+		assertThat(store.countAuthorsWithin(HERE, 300)).isEqualTo(1);
+	}
+
+	@Test
+	void 반경_밖의_사람은_세지_않는다() {
+		store.upsert("test-near", ME, north(100));
+		store.upsert("test-far", OTHER, north(400));
+
+		assertThat(store.countAuthorsWithin(HERE, 300)).isEqualTo(1);
+	}
+
+	/** findSessionsWithin 과 같은 조건이어야 한다 — 전달은 안 가는데 인원에는 잡히면 안 된다 */
+	@Test
+	void 오래_갱신되지_않은_세션은_세지_않는다() {
+		store.upsert("test-stale", ME, north(50));
+		age("test-stale", Duration.ofMinutes(5));
+
+		assertThat(store.countAuthorsWithin(HERE, 300)).isZero();
+	}
+
+	@Test
+	void 아무도_없으면_0() {
+		assertThat(store.countAuthorsWithin(north(50_000), 300)).isZero();
+	}
 }

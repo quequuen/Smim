@@ -259,7 +259,8 @@ export const mockClient: ApiClient = {
   },
 
   async sendPresence() {
-    return delay(undefined, 80);
+    // mock 에는 접속자가 없다. 헤더 표시를 눌러볼 수 있도록 하한을 넘는 값을 돌려준다
+    return delay({ nearby: 6 }, 80);
   },
 
   // mock 은 남이 쓰는 글이 없으므로 실시간으로 올 것도 없다

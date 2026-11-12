@@ -2,7 +2,7 @@ import { getDeviceKey } from '../lib/deviceKey';
 import type { ApiClient } from './client';
 import { ApiError, networkError } from './errors';
 import { createLiveConnection } from './liveClient';
-import type { Block, Message, MessagePage, Reply, RuntimeConfig } from './types';
+import type { Block, Message, MessagePage, Presence, Reply, RuntimeConfig } from './types';
 
 /**
  * 실제 서버 호출. 근거: docs/api.md
@@ -90,7 +90,7 @@ export function createHttpClient(baseUrl: string): ApiClient {
     },
 
     sendPresence({ at, sessionId }) {
-      return request<void>('POST', '/presence', { lat: at.lat, lon: at.lon, sessionId });
+      return request<Presence>('POST', '/presence', { lat: at.lat, lon: at.lon, sessionId });
     },
 
     connectLive(opts) {
