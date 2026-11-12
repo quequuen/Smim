@@ -154,7 +154,22 @@ X-Device-Key: <base64, 32바이트 난수>
 
 같은 사람이 같은 글을 중복 신고할 수 없다(`409 ALREADY_REPORTED`). 신고한 사람에게는 바로 보이지 않는다. → `204`
 
-> 누적 임계치 자동 블라인드는 #16 (7주차) 에서 붙인다.
+이미 가려진 글(`status = 'hidden'`)은 `404` — 신고할 대상이 아니다.
+
+**가리기는 두 단계다.**
+
+| | 언제 | 누구에게 |
+|---|---|---|
+| 신고자 숨김 | **신고 즉시. 임계치 없음** | 신고한 사람에게만 |
+| 자동 블라인드 | 서로 다른 기기 `blind-threshold`(기본 5)대가 신고 | 모두에게 (`status = 'hidden'`) |
+
+한 기기는 `UNIQUE (message_id, reporter_key)`로 한 번만 신고하므로 **혼자서는 임계치를 채울 수 없다.**
+오탐은 `POST /admin/messages/{id}/unhide`로 되돌린다.
+
+**자동 구역 차단** — 자동 블라인드가 일어난 자리 반경 `area-radius-m`(기본 100m) 안에서
+최근 `area-window`(기본 24h) 동안 **가려진 글이** `area-threshold`(기본 3)건 쌓이면
+그 자리를 `banned_area`에 `source = 'auto'`로 등록한다. 세는 대상이 *신고*가 아니라 *가려진 글*이라,
+신고 몇 건으로 멀쩡한 장소가 막히지 않는다.
 
 ---
 
@@ -282,11 +297,69 @@ destination: /user/queue/messages
 | `NOT_FOUND` | 404 | 없는 글 · 지운 글 · 남의 차단 항목 (구분하지 않는다) |
 | `BANNED_AREA` | 403 | 금지 구역 |
 | `ALREADY_REPORTED` | 409 | 중복 신고 |
-| `RATE_LIMITED` | 429 | 도배 방지 |
+| `RATE_LIMITED` | 429 | 도배 방지 — `smim.moderation.rate-window` 안에서 `rate-max` 를 넘겼다 |
+| `NOT_ADMIN` | 401 | `/admin/**` · 토큰 없음/불일치. 토큰 미설정 시에도 같다 |
 
 ---
 
-## 5. Mock 붙이는 법
+## 5. 관리자 API — `/admin/**`
+
+기기 키와 **다른 체계**다. 기기 키(`X-Device-Key`)는 클라이언트가 스스로 만드는 값이라 신원을 증명하지 못하고,
+누가 썼는지 구분할 뿐이다. 관리자는 **서버만 아는 비밀**이어야 한다.
+
+```
+X-Admin-Token: <SMIM_ADMIN_TOKEN>
+```
+
+토큰은 환경변수로만 준다(`smim.admin.token: ${SMIM_ADMIN_TOKEN:}`). **기본값이 없어서, 설정을 빠뜨리면
+`/admin/**`이 전부 `401`이다** — 열린 채가 아니라 닫힌 채가 되게 한다. 비교는 상수 시간으로 한다.
+
+> 일반 API와 달리 응답에 **좌표와 글 내용이 그대로 나간다.** 검토하려면 봐야 하기 때문이다.
+> 1-1·1-4의 금지는 일반 응답에 대한 것이고, 여기는 적용되지 않는다.
+
+### `GET /admin/reports?limit=50`
+
+검토 대기열. 신고가 붙은 글을 **많이 신고된 순**으로. `limit` 기본 50, 최대 200. 지운 글은 빠진다.
+
+```jsonc
+{ "reports": [
+  { "id": 1287, "content": "...", "status": "hidden", "reports": 5,
+    "reasons": "abuse,spam", "firstReportedAt": "...", "createdAt": "..." }
+]}
+```
+
+### `POST /admin/messages/{id}/hide` · `POST /admin/messages/{id}/unhide`
+
+`hide`는 `visible`인 글만, `unhide`는 `hidden`인 글만 바꾼다. 해당하지 않으면 `404` — 상태를 구분해 알려주지 않는다.
+**지운 글은 되살리지 않는다.** → `204`
+
+`unhide`가 자동 블라인드 오탐의 복구 경로다.
+
+### `GET /admin/banned-areas`
+
+```jsonc
+{ "areas": [
+  { "id": 3, "lat": 37.45, "lon": 126.65, "radiusM": 100,
+    "reason": "auto: 신고 누적", "source": "auto", "createdAt": "..." }
+]}
+```
+
+`source`는 `manual`(사람이 등록) 또는 `auto`(신고 누적으로 자동 등록).
+
+### `POST /admin/banned-areas`
+
+```jsonc
+{ "lat": 37.45, "lon": 126.65, "radiusM": 100, "reason": "민원" }
+```
+
+`radiusM`은 **최대 50,000**. 0을 하나 더 붙이면 도시 하나가 통째로 막히므로 상한을 둔다.
+`reason`은 64자. → `201 { "id": 3 }`
+
+### `DELETE /admin/banned-areas/{id}`
+
+없으면 `404`. → `204`
+
+## 6. Mock 붙이는 법
 
 클라이언트를 **인터페이스 하나 + 구현 둘**로 나눈다. `PresenceStore`(#8)와 같은 패턴이다.
 
