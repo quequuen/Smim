@@ -11,5 +11,5 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("smim.presence")
 public record PresenceProperties(@NotBlank String store, @NotNull Duration staleAfter, @NotNull Duration purgeAfter,
-		@Positive int moveToleranceM) {
+		@Positive int moveToleranceM, @Positive int nearbyMin) {
 }

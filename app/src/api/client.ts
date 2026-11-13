@@ -1,4 +1,4 @@
-import type { Block, Message, MessagePage, Reply, ReportReason, RuntimeConfig } from './types';
+import type { Block, Message, MessagePage, Presence, Reply, ReportReason, RuntimeConfig } from './types';
 
 export type Coords = { lat: number; lon: number };
 
@@ -42,8 +42,11 @@ export interface ApiClient {
   unblock(blockId: number): Promise<void>;
   /** 내 글에 달린 답글. 읽음 여부는 앱이 로컬 시각으로 판단한다 */
   getReplies(): Promise<Reply[]>;
-  /** 하트비트. 실시간 전달 대상에 포함되기 위한 위치 등록 — 화면 갱신과 무관 */
-  sendPresence(args: { at: Coords; sessionId: string }): Promise<void>;
+  /**
+   * 하트비트. 실시간 전달 대상에 포함되기 위한 위치 등록 — 화면 갱신과 무관.
+   * 응답으로 "이 근처 몇 명" 이 온다. 이미 주기적으로 오가는 호출이라 전용 경로를 두지 않았다.
+   */
+  sendPresence(args: { at: Coords; sessionId: string }): Promise<Presence>;
   /** 실시간 수신. mock 은 아무것도 하지 않는다 */
   connectLive(opts: LiveOptions): LiveConnection;
 }

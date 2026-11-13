@@ -12,26 +12,14 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class ConfigControllerTest {
 
-	private static final SmimProperties PROPS = props(new SmimProperties.Experiment(
-			List.of(new SmimProperties.Group("A", 100, 150, 15), new SmimProperties.Group("B", 150, 225, 20),
-					new SmimProperties.Group("C", 300, 450, 45), new SmimProperties.Group("D", 500, 750, 70))));
-
-	/**
-	 * /config 는 실험 그룹만 본다. 나머지 설정은 값이 있기만 하면 되므로 한곳에 모아 둔다 —
-	 * SmimProperties 에 항목이 늘어도 이 테스트가 깨지지 않게.
-	 */
-	private static SmimProperties props(SmimProperties.Experiment experiment) {
-		return new SmimProperties(experiment, new SmimProperties.Location(45), new SmimProperties.Marker(6, 300),
-				new SmimProperties.Moderation(5, Duration.ofMinutes(1), 5, 3, 100, Duration.ofHours(24)),
-				new SmimProperties.Admin(null));
-	}
+	/** /config 는 실험 그룹만 본다. 나머지 설정은 TestProps 가 채운다 */
+	private static final SmimProperties PROPS = TestProps.smim();
 
 	private final MockMvc mvc = mvcWith(PROPS);
 
@@ -89,7 +77,7 @@ class ConfigControllerTest {
 	@Test
 	void 그룹을_하나만_남기면_전원이_그_값을_받는다() throws Exception {
 		MockMvc single = mvcWith(
-				props(new SmimProperties.Experiment(List.of(new SmimProperties.Group("C", 300, 450, 45)))));
+				TestProps.smim(new SmimProperties.Experiment(List.of(new SmimProperties.Group("C", 300, 450, 45)))));
 		for (int i = 0; i < 16; i++) {
 			assertThat(groupOf(single, key(i))).isEqualTo("C");
 		}

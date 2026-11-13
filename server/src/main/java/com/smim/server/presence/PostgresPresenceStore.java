@@ -80,6 +80,22 @@ public class PostgresPresenceStore implements PresenceStore {
 				String.class);
 	}
 
+	/** findSessionsWithin 과 같은 조건에서 사람 수만 센다 — 세션 목록을 앱으로 보내지 않기 위해 서버에서 집계한다 */
+	@Override
+	public int countAuthorsWithin(GeoPoint center, int radiusM) {
+		Integer count = jdbc.queryForObject("""
+				SELECT COUNT(DISTINCT author_key) FROM active_session
+				WHERE ST_DWithin(location, %s, :radius)
+				  AND updated_at > now() - make_interval(secs => :staleSec)
+				""".formatted(POINT),
+				new MapSqlParameterSource().addValue("lat", center.lat())
+					.addValue("lon", center.lon())
+					.addValue("radius", radiusM)
+					.addValue("staleSec", props.staleAfter().toSeconds()),
+				Integer.class);
+		return count == null ? 0 : count;
+	}
+
 	/** 만료 처리 ① — WebSocket 연결 종료 시 (#12) */
 	@Override
 	public void remove(String sessionId) {
