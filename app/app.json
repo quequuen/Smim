@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#FBF7EC",
+    "backgroundColor": "#FCF6ED",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.smim",
