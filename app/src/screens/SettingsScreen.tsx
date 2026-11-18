@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { api, isServerConnected, type Block } from '../api';
 import { getMockScenario, MOCK_SCENARIOS, setMockScenario, type MockScenario } from '../api/mockClient';
 import { ChevronIcon } from '../components/Icons';
 import { ScreenModal } from '../components/ScreenModal';
 import { TermsBody } from '../components/TermsBody';
+import { PRIVACY_URL } from '../content/terms';
 import { formatDate } from '../lib/time';
 import { font, spacing } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -103,8 +114,15 @@ function MainPage({
     <ScrollView>
       <Row label="차단한 작성자" value={blockCount === null ? '' : `${blockCount}명`} onPress={() => onOpen('blocks')} />
       <Row label="이용약관" onPress={() => onOpen('terms')} />
-      {/* TODO(#16): smim.app 에 개인정보처리방침을 올린 뒤 Linking.openURL 로 연다 */}
-      <Row label="개인정보처리방침" value="준비 중" />
+      {/* 앱 밖(브라우저)으로 나간다 — 방침 전문을 앱에 복사해 두면 고칠 때마다 빌드해야 한다 */}
+      <Row
+        label="개인정보처리방침"
+        onPress={() =>
+          Linking.openURL(PRIVACY_URL).catch(() =>
+            Alert.alert('열지 못했어요', '브라우저에서 아래 주소를 열어 주세요.\n' + PRIVACY_URL),
+          )
+        }
+      />
 
       <View style={[styles.note, { borderTopColor: palette.ruleSoft }]}>
         <Text style={[styles.noteTitle, { color: palette.ink2 }]}>계정 없이 쓰는 앱이에요</Text>

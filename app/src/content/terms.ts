@@ -6,6 +6,12 @@
  */
 export const TERMS_VERSION = '2026-10-10';
 
+/**
+ * 개인정보처리방침. Play 데이터 세이프티에 제출한 URL 과 **같은 곳**이어야 한다 —
+ * Play 는 둘의 일치를 보고, 어긋나면 리젝 사유다 (#16)
+ */
+export const PRIVACY_URL = 'https://quequuen.github.io/Smim/privacy.html';
+
 /** 동의 화면에 먼저 보여주는 핵심 규칙 */
 export const TERMS_SUMMARY = [
   '욕설·비하·혐오·성적인 글, 괴롭힘은 남길 수 없어요.',
